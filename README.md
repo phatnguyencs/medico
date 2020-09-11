@@ -1,2 +1,2 @@
 # medico
-Medival challenge 2020: Medico - polyb segmentation
+Medival challenge 2020: Medico - polyp segmentation
