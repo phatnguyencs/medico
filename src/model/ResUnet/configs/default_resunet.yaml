@@ -1,0 +1,11 @@
+OUTPUT_DIR: '/content/drive/My Drive/Challenges/MediaEval2020_Medico/medico/result'
+
+DATA:
+  ROOT_DIR: '/content/drive/My Drive/Challenges/MediaEval2020_Medico/medico/custom_data'
+  TRAIN_IMAGES: 'images'
+  TRAIN_MASKS: 'dfs_masks'
+
+SOLVER:
+  EPOCH: 20
+  BATCH_SIZE: 2
+  EARLY_STOPPING: 5
