@@ -22,7 +22,6 @@ class ResidualConv(nn.Module):
         )
 
     def forward(self, x):
-
         return self.conv_block(x) + self.conv_skip(x)
 
 

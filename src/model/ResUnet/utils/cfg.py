@@ -11,14 +11,14 @@ def get_default_config():
 
     # ---------------------- COMMON CONFIG ------------------------
     cfg.OUTPUT_DIR = ''
-    cfg.CHECKPOINT_PATH = None
+    cfg.CHECKPOINT_PATH = ''
 
     # ---------------------- DATA CONFIG ------------------------
     cfg.DATA.ROOT_DIR = ''
     cfg.DATA.TRAIN = ''
     cfg.DATA.TRAIN_IMAGES = ''
     cfg.DATA.TRAIN_MASKS = ''
-    cfg.DATA.VAL = None
+    cfg.DATA.VAL = ''
 
     # ---------------------- MODEL CONFIG ------------------------
     cfg.MODEL.NAME = 'res_unet_plus'

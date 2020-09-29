@@ -1,11 +1,11 @@
 import warnings
-
 warnings.simplefilter("ignore", (UserWarning, FutureWarning))
+
 from utils.hparams import HParam
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
-from dataset import dataloader
+import dataloader
 from utils import metrics
 from core.res_unet import ResUnet
 from core.res_unet_plus import ResUnetPlusPlus
@@ -24,17 +24,15 @@ from utils import (
     MyWriter,
 )
 
-
 def do_train(cfg, name):
     resume = cfg.CHECKPOINT_PATH
     num_epochs = cfg.SOLVER.EPOCH
     checkpoint_dir = "{}/{}".format(cfg.OUTPUT_DIR, 'checkpoints')
     os.makedirs(checkpoint_dir, exist_ok=True)
-
     os.makedirs("{}/{}".format(cfg.OUTPUT_DIR, 'log'), exist_ok=True)
     writer = MyWriter("{}/{}".format(cfg.OUTPUT_DIR, 'log'))
-    # get model
 
+    # get model
     if cfg.MODEL.NAME == 'res_unet_plus':
         model = ResUnetPlusPlus(3).cuda()
     else:
@@ -56,12 +54,10 @@ def do_train(cfg, name):
     best_loss = 999
     start_epoch = 0
     # optionally resume from a checkpoint
-    if resume is not None:
+    if resume != '':
         print("=> loading checkpoint '{}'".format(resume))
         checkpoint = torch.load(resume)
-
         start_epoch = checkpoint["epoch"]
-
         best_loss = checkpoint["best_loss"]
         model.load_state_dict(checkpoint["state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer"])
@@ -79,7 +75,7 @@ def do_train(cfg, name):
         mass_dataset_train, batch_size=cfg.SOLVER.BATCH_SIZE, num_workers=4, shuffle=True
     )
 
-    if cfg.DATA.VAL:
+    if cfg.DATA.VAL != '':
         mass_dataset_val = dataloader.ImageDataset(
             cfg, False, transform=transforms.Compose([dataloader.ToTensorTarget()])
         )
@@ -100,8 +96,8 @@ def do_train(cfg, name):
         # logging accuracy and loss
         train_acc = metrics.MetricTracker()
         train_loss = metrics.MetricTracker()
+        
         # iterate over data
-
         loader = tqdm(train_dataloader, desc="training")
         for idx, data in enumerate(loader):
 
@@ -142,11 +138,11 @@ def do_train(cfg, name):
         if cfg.DATA.VAL == None:
             continue
 
-        valid_metrics = validation(
+        valid_metrics = do_val(
             val_dataloader, model, criterion, writer, epoch
         )
         save_path = os.path.join(
-            checkpoint_dir, "checkpoint_%04d.pt" % (name, epoch)
+            checkpoint_dir, "best_model.pt" % (name, epoch)
         )
         # store best loss and save a model checkpoint
         if valid_metrics["valid_loss"] < best_loss:
@@ -169,7 +165,7 @@ def do_train(cfg, name):
             not_improve_count = 0
 
 
-def validation(valid_loader, model, criterion, logger, step):
+def do_val(valid_loader, model, criterion, logger, step):
 
     # logging accuracy and loss
     valid_acc = metrics.MetricTracker()
@@ -210,8 +206,7 @@ def setup():
     cfg = get_default_config()
     cfg.merge_from_file(args.config)
 
-    cfg.OUTPUT_DIR_dir = osp.join(cfg.OUTPUT_DIR, args.name)
-    os.makedirs(cfg.OUTPUT_DIR_dir, exist_ok=True)
+    os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
     return args, cfg
 
