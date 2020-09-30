@@ -16,14 +16,14 @@ class MyWriter(SummaryWriter):
         self.add_scalar("validation/dice_loss", dice_loss, step)
         self.add_scalar("validation/iou", iou, step)
 
-    def log_images(self, map, target, prediction, step):
-        if len(map.shape) > 3:
-            map = map.squeeze(0)
+    def log_images(self, img, target, prediction, step):
+        if len(img.shape) > 3:
+            img = img.squeeze(0)
         if len(target.shape) > 2:
             target = target.squeeze()
         if len(prediction.shape) > 2:
             prediction = prediction.squeeze()
-        self.add_image("map", map, step)
+        self.add_image("image", img, step)
         self.add_image("mask", target.unsqueeze(0), step)
         self.add_image("prediction", prediction.unsqueeze(0), step)
 

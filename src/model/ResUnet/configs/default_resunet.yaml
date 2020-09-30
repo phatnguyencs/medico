@@ -1,4 +1,4 @@
-OUTPUT_DIR: './result'
+OUTPUT_DIR: './result/30sep'
 
 DATA:
   ROOT_DIR: './data'
@@ -6,6 +6,6 @@ DATA:
   TRAIN_MASKS: 'dfs_masks'
 
 SOLVER:
-  EPOCH: 20
+  EPOCH: 100
   BATCH_SIZE: 2
-  EARLY_STOPPING: 5
+  EARLY_STOPPING: 10

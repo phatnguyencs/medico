@@ -15,10 +15,10 @@ def get_default_config():
 
     # ---------------------- DATA CONFIG ------------------------
     cfg.DATA.ROOT_DIR = ''
-    cfg.DATA.TRAIN = ''
+    cfg.DATA.TRAIN = 'train.csv'
     cfg.DATA.TRAIN_IMAGES = ''
     cfg.DATA.TRAIN_MASKS = ''
-    cfg.DATA.VAL = ''
+    cfg.DATA.VAL = 'val.csv'
 
     # ---------------------- MODEL CONFIG ------------------------
     cfg.MODEL.NAME = 'res_unet_plus'
@@ -26,11 +26,11 @@ def get_default_config():
     
 
     # ---------------------- SOLVER CONFIG ------------------------
-    cfg.SOLVER.EPOCH = 20000
+    cfg.SOLVER.EPOCH = 100
     cfg.SOLVER.BATCH_SIZE = 4
     cfg.SOLVER.EARLY_STOPPING = 10
     cfg.SOLVER.VALIDATION_EVERY = -1 # 
-    cfg.SOLVER.LOGGING_STEP = 50
+    cfg.SOLVER.LOGGING_STEP = 10
     cfg.SOLVER.LR = 1e-3
 
     return cfg

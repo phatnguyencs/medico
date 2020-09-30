@@ -5,7 +5,7 @@ from utils.hparams import HParam
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
-import dataloader
+import dataset
 from utils import metrics
 from core.res_unet import ResUnet
 from core.res_unet_plus import ResUnetPlusPlus
@@ -68,16 +68,22 @@ def do_train(cfg, name):
         )
        
     # get data
-    mass_dataset_train = dataloader.ImageDataset(
-        cfg, True, transform=transforms.Compose([dataloader.ToTensorTarget()])
+    train_transforms = [
+        dataset.AdjustContrast(),
+        # dataset.AdjustBrightness(),
+        # dataset.Rotate(),
+        dataset.ToTensorTarget(),
+    ]
+    mass_dataset_train = dataset.ImageDataset(
+        cfg, True, transform=transforms.Compose(train_transforms)
     )
     train_dataloader = DataLoader(
         mass_dataset_train, batch_size=cfg.SOLVER.BATCH_SIZE, num_workers=4, shuffle=True
     )
 
     if cfg.DATA.VAL != '':
-        mass_dataset_val = dataloader.ImageDataset(
-            cfg, False, transform=transforms.Compose([dataloader.ToTensorTarget()])
+        mass_dataset_val = dataset.ImageDataset(
+            cfg, False, transform=transforms.Compose([dataset.ToTensorTarget()])
         )
         val_dataloader = DataLoader(
             mass_dataset_val, batch_size=1, num_workers=4, shuffle=False
@@ -104,6 +110,9 @@ def do_train(cfg, name):
             # get the inputs and wrap in Variable
             inputs = data["sat_img"].cuda()
             labels = data["map_img"].cuda()
+            # print(labels.shape)
+            # print(torch.max(labels))
+            # print(torch.min(labels))
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -135,22 +144,20 @@ def do_train(cfg, name):
             # Validatiuon
             step += 1
         
-        if cfg.DATA.VAL == None:
+        if cfg.DATA.VAL == '':
             continue
 
         valid_metrics = do_val(
             val_dataloader, model, criterion, writer, epoch
         )
-        save_path = os.path.join(
-            checkpoint_dir, "best_model.pt" % (name, epoch)
-        )
+        save_path = os.path.join(checkpoint_dir, "best_model.pt" )
         # store best loss and save a model checkpoint
         if valid_metrics["valid_loss"] < best_loss:
             best_loss = valid_metrics["valid_loss"]
             torch.save(
                 {
                     "epoch": epoch,
-                    "arch": "ResUnet",
+                    "arch": cfg.MODEL.NAME,
                     "state_dict": model.state_dict(),
                     "best_loss": best_loss,
                     "optimizer": optimizer.state_dict(),
@@ -177,10 +184,10 @@ def do_val(valid_loader, model, criterion, logger, step):
     # Iterate over data.
     with torch.no_grad():
         for idx, data in enumerate(tqdm(valid_loader, desc="validation")):
-
             # get the inputs and wrap in Variable
             inputs = data["sat_img"].cuda()
             labels = data["map_img"].cuda()
+            
 
             # forward
             # prob_map = model(inputs) # last activation was a sigmoid
@@ -214,8 +221,3 @@ if __name__ == "__main__":
     args, cfg = setup()
     do_train(cfg, name=args.name)
     
-    # hp = HParam(args.config)
-    # with open(args.config, "r") as f:
-    #     hp_str = "".join(f.readlines())
-
-
