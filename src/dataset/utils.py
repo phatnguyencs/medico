@@ -1,8 +1,12 @@
+import pycocotools.mask as coco_mask
 import json, funcy, shutil, os
 import os.path as osp
 import glob
 import shutil
 import cv2
+import numpy as np
+from skimage import measure
+
 # ------------------------
 # COCO HELPER
 
@@ -80,6 +84,37 @@ def get_image_size_given_path(img_path: str):
     img = cv2.imread(img_path)
     return img.shape
 
+def close_contour(contour):
+    if not np.array_equal(contour[0], contour[-1]):
+        contour = np.vstack((contour, contour[0]))
+    return contour
+
+def binary_mask_to_polygon(binary_mask, tolerance=0):
+    """Converts a binary mask to COCO polygon representation
+    Args:
+        binary_mask: a 2D binary numpy array where '1's represent the object
+        tolerance: Maximum distance from original points of polygon to approximated
+            polygonal chain. If tolerance is 0, the original coordinate array is returned.
+    """
+    polygons = []
+    # pad mask to close contours of shapes which start and end at an edge
+    padded_binary_mask = np.pad(binary_mask, pad_width=1, mode='constant', constant_values=0)
+    contours = measure.find_contours(padded_binary_mask, 0.5)
+    contours = np.subtract(contours, 1)
+    for contour in contours:
+        contour = close_contour(contour)
+        contour = measure.approximate_polygon(contour, tolerance)
+        if len(contour) < 3:
+            continue
+        contour = np.flip(contour, axis=1)
+        segmentation = contour.ravel().tolist()
+        # after padding and subtracting 1 we may get -0.5 points in our segmentation 
+        segmentation = [0 if i < 0 else i for i in segmentation]
+        polygons.append(segmentation)
+
+    return polygons
+
+
 def create_coco_mask_annotation(mask, bbox):
     '''
     Find contours around each sub-mask
@@ -87,19 +122,13 @@ def create_coco_mask_annotation(mask, bbox):
         mask: cv2 numpy gray image
     '''
     height, width = mask.shape[:2]
-    edged = cv2.Canny(mask, 30, 200)
-    contours, hierarchy = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    xmin, ymin, xmax, ymax = bbox
-    segmentations = []
-    area = 0.0
-    for y in range(height):
-        for x in range(width):
-            if x < xmin or x > xmax or y < ymin or y > ymax:
-                continue
+    # edged = cv2.Canny(mask, 30, 200)
+    # contours, hierarchy = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    xmin, ymin, xmax, ymax = bbox['xmin'], bbox['ymin'], bbox['xmax'], bbox['ymax']
+    dummy = np.zeros((height, width), dtype=np.uint)
+    dummy[ymin:ymax+1, xmin:xmax+1] = 1
+    mask *= dummy
+    segmentations = binary_mask_to_polygon(mask/255)
+    area = np.sum(mask/255.0)
 
-            if mask[y, x] == 255.0:
-                segmentations.append(float(x))
-                segmentations.append(float(y))            
-                area += 1.0
-    
     return segmentations, area

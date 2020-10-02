@@ -3,14 +3,16 @@ import os
 import os.path as osp
 import json
 import cv2
-from utils import create_coco_mask_annotation, get_image_size_given_path
+from dataset.utils import create_coco_mask_annotation, get_image_size_given_path
+from tqdm import tqdm
 
 class COCOconverter(object):
     def __init__(self, mask_dir: str, img_dir: str, box_json: str):
         self.mask_dir=mask_dir
         self.img_dir=img_dir
-        self.box_info = json.load(open(box_json), 'r')
+        self.box_info = json.load(open(box_json, 'r'))
         self.default_dataset_id = 88
+        self.default_color = '#7ad54d'
 
     def _create_image_item(self, category_ids: list, img_name: str, img_id:str, width: int, height: int):
         res = {}
@@ -34,12 +36,13 @@ class COCOconverter(object):
 
         '''
         if color is None:
-            color = "7ad54d"
+            color = self.default_color
         mask_path = osp.join(self.mask_dir, f"{img_name}.jpg")
         mask = cv2.imread(mask_path)
+        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
         segmentations, area = create_coco_mask_annotation(mask, bbox)
         
-        bbox = [bbox[0], bbox[1], bbox[2]-bbox[0], bbox[3]-bbox[1]]
+        bbox = [bbox['xmin'], bbox['ymin'], bbox['xmax']-bbox['xmin'], bbox['ymax']-bbox['ymin']]
         res = {
             'area': area,
             'bbox': bbox,
@@ -52,14 +55,14 @@ class COCOconverter(object):
             'image_id': image_id,
             'iscrowd': iscrowd,
             'metadata': {},
-            'segmentation': [segmentations],
+            'segmentation': segmentations,
             'width': width,
         }
         return res
         
     def _create_cat_item(self, cat_name, cat_id, supercategory="", color=None, creator="system", metadata={}):
         if color is None:
-            color = "7ad54d"
+            color = self.default_color
         return {
             'color': color,
             'create': creator,
@@ -69,13 +72,14 @@ class COCOconverter(object):
             'metadata': {},
         }
 
-    def _create_categories(self):
+    def process(self):
         categories, images, annotations = [], [], []
         category_map = {}
         category_id = 0
         image_id = 0
         annot_id = 0
-        for img_name, value in self.box_info.items():
+
+        for img_name, value in tqdm(self.box_info.items()):
             img_id = str(image_id)
             image_id += 1
             img_cat_ids = []
@@ -90,13 +94,13 @@ class COCOconverter(object):
                     categories.append(cat_item)
 
 
-                annot_item = self._create_annot_item(box, img_name, annot_id, img_id, category_map[box['label']])    
+                annot_item = self._create_annot_item(box, img_name, annot_id, img_id, category_map[box['label']], width=W, height=H)    
                 annotations.append(annot_item)
                 annot_id += 1
                 img_cat_ids.append(category_map[box['label']])
 
             img_cat_ids = list(set(img_cat_ids))
-            img_item = self._create_image_item(category_ids=img_cat_ids, img_name=img_name, img_id=img_id)
+            img_item = self._create_image_item(category_ids=img_cat_ids, img_name=img_name, img_id=img_id, width=W, height=H)
             images.append(img_item)
         
         return {
