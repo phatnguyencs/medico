@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from core.modules import ResidualConv, Upsample
+from model.ResUnet.core.modules import ResidualConv, Upsample
 
 
 class ResUnet(nn.Module):

@@ -1,4 +1,4 @@
-OUTPUT_DIR: './result/30sep'
+OUTPUT_DIR: './result/resunet++'
 
 DATA:
   ROOT_DIR: './data'

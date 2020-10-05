@@ -8,6 +8,7 @@ def get_default_config():
     cfg.DATA = CN()
     cfg.SOLVER = CN()
     cfg.MODEL = CN()
+    cfg.INFERENCE = CN()
 
     # ---------------------- COMMON CONFIG ------------------------
     cfg.OUTPUT_DIR = ''
@@ -24,6 +25,10 @@ def get_default_config():
     cfg.MODEL.NAME = 'res_unet_plus'
     cfg.MODEL.IMAGE_SIZE = (512, 512)
     
+
+    # ---------------------- VISUALIZE RESULT --------------------
+    cfg.INFERENCE.SAVE_DIR = ''
+    cfg.INFERENCE.MASK_THRES = 0.5
 
     # ---------------------- SOLVER CONFIG ------------------------
     cfg.SOLVER.EPOCH = 100

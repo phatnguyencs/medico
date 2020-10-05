@@ -51,11 +51,12 @@ class ImageDataset(Dataset):
         # image_name = maskpath.split('/')[-1].split('.')[0]
         
         image = io.imread(imagepath) #[H, W, C]
+        original_width, original_height = image.shape[1], image.shape[0]
         mask = io.imread(maskpath) #[H, W, 1]
         image = cv2.resize(image, dsize=self.image_size)#, interpolation=cv2.INTER_CUBIC)
         mask = cv2.resize(mask, dsize=self.image_size)#, interpolation=cv2.INTER_CUBIC)
         gray_mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
-
+        
         sample = {
             "sat_img": Image.fromarray(image).convert("RGB"), 
             "map_img": Image.fromarray(gray_mask).convert('L'),
@@ -64,7 +65,22 @@ class ImageDataset(Dataset):
         if self.transform:
             sample = self.transform(sample)
 
+        sample['image_path'] = imagepath
+        sample['original_width'] = original_width
+        sample['original_height'] = original_height
+
         return sample
+
+    @classmethod
+    def _prepare_image(img_path, cfg):
+        '''
+            
+        '''
+        image = io.imread(img_path)
+        image = cv2.resize(image, dsize=cfg.MODEL.IMAGE_SIZE)
+        image = Image.fromarray(image).convert("RGB")
+        return transforms.functional.to_tensor(image) 
+
 
 
 class ToTensorTarget(object):

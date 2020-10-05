@@ -1,7 +1,6 @@
 import warnings
 warnings.simplefilter("ignore", (UserWarning, FutureWarning))
 
-from utils.hparams import HParam
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
@@ -110,9 +109,6 @@ def do_train(cfg, name):
             # get the inputs and wrap in Variable
             inputs = data["sat_img"].cuda()
             labels = data["map_img"].cuda()
-            # print(labels.shape)
-            # print(torch.max(labels))
-            # print(torch.min(labels))
 
             # zero the parameter gradients
             optimizer.zero_grad()

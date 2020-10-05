@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 
@@ -41,12 +42,11 @@ class MetricTracker(object):
 
 
 # https://stackoverflow.com/questions/48260415/pytorch-how-to-compute-iou-jaccard-index-for-semantic-segmentation
-def jaccard_index(input, target):
-
-    intersection = (input * target).long().sum().data.cpu()[0]
+def jaccard_index(output, target):
+    intersection = torch.sum(output * target).cpu().numpy().tolist() # This will return a single float number
     union = (
-        input.long().sum().data.cpu()[0]
-        + target.long().sum().data.cpu()[0]
+        output.long().sum().data.cpu()
+        + target.long().sum().data.cpu()
         - intersection
     )
 
@@ -57,12 +57,12 @@ def jaccard_index(input, target):
 
 
 # https://github.com/pytorch/pytorch/issues/1249
-def dice_coeff(inp, target):
-    num_in_target = inp.size(0)
+def dice_coeff(output, target):
+    num_in_target = output.size(0)
 
     smooth = 1.0
 
-    pred = inp.view(num_in_target, -1)
+    pred = output.view(num_in_target, -1)
     truth = target.view(num_in_target, -1)
 
     intersection = (pred * truth).sum(1)
@@ -70,3 +70,48 @@ def dice_coeff(inp, target):
     loss = (2.0 * intersection + smooth) / (pred.sum(1) + truth.sum(1) + smooth)
 
     return loss.mean().item()
+
+def calculate_f_score(precision, recall, base=2):
+    return (1 + base**2)*(precision*recall)/((base**2 * precision) + recall)
+
+def calculate_all_metrics(preds, gt, cpu=True):
+    '''
+    Args:
+        preds, gt: [batch, C, H, W], here C = 1 for mask
+    Return:
+        {
+            'dice_coeff': np.array[dice-coeff scores]
+            'IoU': np.array[IoU scores]
+            'precision': np.array[Precision scores]
+            'recall': np.array[Recall scores]
+            'F2': np.array[F2 scores]
+        }
+    '''
+
+    batch_size = preds.size(0)
+    y_preds = preds.view(batch_size, -1)
+    y_true = gt.view(batch_size, -1)
+    smooth = 1.0
+    eps = 1e-5
+    intersection = torch.sum(y_preds*y_true, dim=1)
+    union = torch.sum(y_preds, 1) + torch.sum(y_true,1) - intersection
+
+    iou = intersection/(union + eps)
+    dice_coeff = (2.0*intersection + smooth)/(y_preds.sum(1) + y_true.sum(1) + smooth)
+    precision = intersection / (y_true.sum(1)  + eps)
+    recall = intersection / (y_preds.sum(1) + eps)
+    f2 = calculate_f_score(precision, recall, 2)
+
+    all_scores = {
+        'dice_coeff': dice_coeff,
+        'IoU': iou,
+        'precision': precision,
+        'recall': recall,
+        'F2': f2
+    }
+
+    if cpu == True:
+        for k in all_scores.keys():
+            all_scores[k] = all_scores[k].cpu().numpy()
+
+    return all_scores
