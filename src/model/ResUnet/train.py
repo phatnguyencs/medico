@@ -28,7 +28,6 @@ def save_checkpoint(model, epoch, optimizer, best_score, save_path):
     torch.save(
         {
             "epoch": epoch,
-            "arch": cfg.MODEL.NAME,
             "state_dict": model.state_dict(),
             "best_score": best_score,
             "optimizer": optimizer.state_dict(),
@@ -37,7 +36,7 @@ def save_checkpoint(model, epoch, optimizer, best_score, save_path):
     )
     print("Saved checkpoint to: %s" % save_path)
 
-def do_train(cfg, name):
+def do_train(cfg):
     resume = cfg.CHECKPOINT_PATH
     num_epochs = cfg.SOLVER.EPOCH
     checkpoint_dir = "{}/{}".format(cfg.OUTPUT_DIR, 'checkpoints')
@@ -134,9 +133,7 @@ def do_train(cfg, name):
             
             # if step % cfg.SOLVER.LOGGING_STEP == 0:
             loader.set_description(
-                "Training Loss: {:.4f}, dice_coeff: {:.4f}".format(
-                    train_loss.avg, train_acc.avg
-                )
+                "Training Loss: {:.4f}, dice_coeff: {:.4f}".format(train_loss.avg, train_acc.avg)
             )
         
         # tensorboard logging
