@@ -1,13 +1,43 @@
 import warnings
-
 warnings.simplefilter("ignore", UserWarning)
 
 from skimage import transform
 from torchvision import transforms
-
 import numpy as np
+from PIL import Image
 import torch
 
+imagenet_mean = [0.485, 0.456, 0.406]
+imagenet_std = [0.229, 0.224, 0.225]
+
+def create_transform(cfg, mode):
+    '''
+    Args:
+        mode: one of a specific mode: ['train', 'val', 'test']
+    Return:
+        image_trans, mask_trans
+    '''
+    assert mode in ['train', 'val', 'test']
+    if mode in ['train', 'val']:
+        image_trans = [
+            transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+        ]
+        mask_trans = [
+            transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST),
+            transforms.ToTensor(),
+        ]
+
+    elif mode == 'test':
+        image_trans = [
+            transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+        ]
+        mask_trans = []
+    
+    return image_trans, mask_trans
 
 class RescaleTarget(object):
     """Rescale the image in a sample to a given size.
@@ -44,7 +74,6 @@ class RescaleTarget(object):
 
         return {"sat_img": sat_img, "map_img": map_img}
 
-
 class RandomRotationTarget(object):
     """Rotate the image and target randomly in a sample.
 
@@ -76,7 +105,6 @@ class RandomRotationTarget(object):
         map_img = transform.rotate(sample["map_img"], self.angle, self.resize)
 
         return {"sat_img": sat_img, "map_img": map_img}
-
 
 class RandomCropTarget(object):
     """

@@ -1,11 +1,23 @@
-OUTPUT_DIR: './result/resunet++'
+OUTPUT_DIR: './result/resunet++/Oct10_2'
+CHECKPOINT_PATH: './result/resunet++/Oct10/checkpoints/best_model.pt'
+
+MODEL:
+  IMAGE_SIZE: (448, 448)
 
 DATA:
   ROOT_DIR: './data'
-  TRAIN_IMAGES: 'images'
-  TRAIN_MASKS: 'dfs_masks'
-
+  TRAIN_IMAGES: 'train_images'
+  TEST_IMAGES: 'test_images'
+  TRAIN_MASKS: 'masks'
+  
+  TRAIN: 'train3.csv'
+  VAL: 'val3.csv'
+  
 SOLVER:
   EPOCH: 100
-  BATCH_SIZE: 2
-  EARLY_STOPPING: 10
+  BATCH_SIZE: 4
+  EARLY_STOPPING: -1
+  LR: 0.001
+
+INFERENCE:
+  SAVE_DIR: './result/resunet++/Oct10_2'

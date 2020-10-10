@@ -3,6 +3,7 @@ from yacs.config import CfgNode as CN
 
 def get_default_config():
     cfg = CN()
+    
 
     # define your config content here
     cfg.DATA = CN()
@@ -18,6 +19,7 @@ def get_default_config():
     cfg.DATA.ROOT_DIR = ''
     cfg.DATA.TRAIN = 'train.csv'
     cfg.DATA.TRAIN_IMAGES = ''
+    cfg.DATA.TEST_IMAGES = ''
     cfg.DATA.TRAIN_MASKS = ''
     cfg.DATA.VAL = 'val.csv'
 
@@ -29,6 +31,7 @@ def get_default_config():
     # ---------------------- VISUALIZE RESULT --------------------
     cfg.INFERENCE.SAVE_DIR = ''
     cfg.INFERENCE.MASK_THRES = 0.5
+    cfg.INFERENCE.BATCH_SIZE = 10
 
     # ---------------------- SOLVER CONFIG ------------------------
     cfg.SOLVER.EPOCH = 100

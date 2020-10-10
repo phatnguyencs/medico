@@ -1,13 +1,14 @@
 import torch
 from torch import nn
-
+import numpy as np
+import json
 
 class BCEDiceLoss(nn.Module):
     def __init__(self, weight=None, size_average=True):
         super().__init__()
 
-    def forward(self, input, target):
-        pred = input.view(-1)
+    def forward(self, inp, target):
+        pred = inp.view(-1)
         truth = target.view(-1)
 
         # BCE loss
@@ -18,13 +19,13 @@ class BCEDiceLoss(nn.Module):
             pred.double().sum() + truth.double().sum() + 1
         )
 
-        return bce_loss + (1 - dice_coef)
-
+        loss = bce_loss + (1 - dice_coef)
+        # loss = (1 - dice_coef)
+        return loss
 
 # https://github.com/pytorch/examples/blob/master/imagenet/main.py
 class MetricTracker(object):
     """Computes and stores the average and current value"""
-
     def __init__(self):
         self.reset()
 
@@ -40,6 +41,40 @@ class MetricTracker(object):
         self.count += n
         self.avg = self.sum / self.count
 
+class ValidationTracker(MetricTracker):
+    def __init__(self):
+        self.all_scores = {
+            'dice_coeff': 0.0,
+            'IoU': 0.0,
+            'precision': 0.0,
+            'recall': 0.0,
+            'F2': 0.0,
+        }
+        self.count = 0
+
+
+    def reset(self):
+        for k in self.all_scores.keys():
+            self.all_scores[k] = 0.0
+        self.count = 0
+    
+    def update(self, score_dict):
+        self.count += score_dict['IoU'].shape[0]
+        for k in score_dict.keys():
+            self.all_scores[k] += np.sum(score_dict[k])
+        
+    def get_avg(self):
+        res = self.all_scores
+        for k in res.keys():
+            res[k] /= self.count
+
+        return res
+
+    def to_json(self, json_file):
+        res = self.get_avg()
+        with open(json_file, 'w') as f:
+            json.dump(res, f, indent=4)
+            
 
 # https://stackoverflow.com/questions/48260415/pytorch-how-to-compute-iou-jaccard-index-for-semantic-segmentation
 def jaccard_index(output, target):

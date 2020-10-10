@@ -16,7 +16,7 @@ from PIL import Image
 class ImageDataset(Dataset):
     """Massachusetts Road and Building dataset"""
 
-    def __init__(self, cfg, train=True, transform=None):
+    def __init__(self, cfg, img_path, mask_path, train=True, image_transform=None, label_transform=None):
         """
         Args:
             csv_file (string): Path to the csv file with image paths
@@ -25,11 +25,12 @@ class ImageDataset(Dataset):
             transform (callable, optional): Optional transform to be applied on a sample.
         """
         self.train = train
-        self.train_img_path = osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES)
-        self.train_mask_path = osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS)
+        self.img_path = img_path
+        self.mask_path = mask_path
         
         self._load_csv_data(cfg)
-        self.transform = transform
+        self.image_transform = image_transform
+        self.label_transform = label_transform
         self.image_size = cfg.MODEL.IMAGE_SIZE
 
     def _load_csv_data(self, cfg):
@@ -39,8 +40,10 @@ class ImageDataset(Dataset):
             df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.VAL))
         
         self.list_img = df['image'].tolist()
-        self.mask_list = [osp.join(self.train_mask_path, f'{s}.jpg') for s in self.list_img]
-        self.img_list = [osp.join(self.train_img_path, f'{s}.jpg') for s in self.list_img]
+        self.mask_list = [osp.join(self.mask_path, f'{s}.jpg') for s in self.list_img]
+        self.img_list = [osp.join(self.img_path, f'{s}.jpg') for s in self.list_img]
+
+        print(f"Created dataset with {len(self.img_list)} images")
 
     def __len__(self):
         return len(self.mask_list)
@@ -48,40 +51,39 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         maskpath = self.mask_list[idx]
         imagepath = self.img_list[idx]
-        # image_name = maskpath.split('/')[-1].split('.')[0]
         
-        image = io.imread(imagepath) #[H, W, C]
-        original_width, original_height = image.shape[1], image.shape[0]
-        mask = io.imread(maskpath) #[H, W, 1]
-        image = cv2.resize(image, dsize=self.image_size)#, interpolation=cv2.INTER_CUBIC)
-        mask = cv2.resize(mask, dsize=self.image_size)#, interpolation=cv2.INTER_CUBIC)
-        gray_mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
-        
+        image = Image.open(imagepath).convert("RGB") #[W, H, C]
+        mask = Image.open(maskpath)# .convert('L')
+        original_width, original_height = image.size
+
+        if self.image_transform:
+            image = self.image_transform(image)
+        if self.label_transform:
+            mask = self.label_transform(mask)[0,:,:]
+
         sample = {
-            "sat_img": Image.fromarray(image).convert("RGB"), 
-            "map_img": Image.fromarray(gray_mask).convert('L'),
+            "sat_img": image,
+            "map_img": mask,
         }
 
-        if self.transform:
-            sample = self.transform(sample)
-
         sample['image_path'] = imagepath
-        sample['original_width'] = original_width
-        sample['original_height'] = original_height
+        sample['raw_shape'] = {
+            'width': original_width,
+            'height': original_height,
+        }
 
         return sample
 
-    @classmethod
-    def _prepare_image(img_path, cfg):
+    @staticmethod
+    def prepare_image(img_path, cfg):
         '''
-            
+            Prepare an iamge ready to feed into ResUnet++ model
         '''
         image = io.imread(img_path)
+        raw_shape = {'height': image.shape[0], 'width': image.shape[1]}
         image = cv2.resize(image, dsize=cfg.MODEL.IMAGE_SIZE)
         image = Image.fromarray(image).convert("RGB")
-        return transforms.functional.to_tensor(image) 
-
-
+        return transforms.functional.to_tensor(image), raw_shape
 
 class ToTensorTarget(object):
     """Convert ndarrays in sample to Tensors."""
@@ -103,11 +105,10 @@ class NormalizeTarget(transforms.Normalize):
 
     def __call__(self, sample):
         return {
-            "sat_img": transforms.functional.normalize(
-                sample["sat_img"], self.mean, self.std
-            ),
+            "sat_img": transforms.functional.normalize(sample["sat_img"], self.mean, self.std),
             "map_img": sample["map_img"],
         }
+
 
 
 # https://discuss.pytorch.org/t/simple-way-to-inverse-transform-normalization/4821/3
@@ -129,7 +130,7 @@ class UnNormalize(object):
         return tensor
 
 class Rotate(object):
-    def __init__(self, degree=[-30, -15, 0, 15, 30]):
+    def __init__(self, degree=list(range(0, 90, 10))):
         self.degree = random.choice(degree)
     
     def __call__(self, sample):
@@ -191,3 +192,6 @@ class AdjustContrast(object):
             'sat_img': transforms.functional.adjust_contrast(sample['sat_img'], self.contrast_factor),
             'map_img': sample['map_img'],
         }
+
+def create_dataset(cfg, mode='train', transforms=None):
+    pass

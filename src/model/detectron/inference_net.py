@@ -21,12 +21,12 @@ from detectron2.evaluation import (
     verify_results,
 )
 
-from centermask.evaluation import COCOEvaluator
+from model.detectron.centermask.evaluation import COCOEvaluator
 from detectron2.modeling import GeneralizedRCNNWithTTA
 
 from detectron2.data.dataset_mapper import DatasetMapper
-from centermask.config import get_cfg
-from centermask.checkpoint import AdetCheckpointer
+from model.detectron.centermask.config import get_cfg
+from model.detectron.centermask.checkpoint import AdetCheckpointer
 
 from detectron2.utils.visualizer import ColorMode
 from detectron2.utils.visualizer import Visualizer
