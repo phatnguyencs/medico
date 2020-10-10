@@ -4,7 +4,7 @@ warnings.simplefilter("ignore", (UserWarning, FutureWarning))
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
-import dataset
+from model.ResUnet.dataset import ImageDataset
 from model.ResUnet.utils import metrics
 from model.ResUnet.core.res_unet import ResUnet
 from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
@@ -69,11 +69,11 @@ def do_train(cfg):
         # best_loss = checkpoint["best_loss"]
         model.load_state_dict(checkpoint["state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer"])
-        print("=> loaded checkpoint '{}' (epoch {})".format(resume, checkpoint["epoch"]))
+        print("=> loaded checkpoint '{}', epoch {}, best_score: {}".format(resume, checkpoint["epoch"], checkpoint['best_score']))
 
     # get data
     image_transforms, label_transforms = aug.create_transform(cfg, 'train')
-    dataset_train = dataset.ImageDataset(
+    dataset_train = ImageDataset(
         cfg, 
         img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
         mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
@@ -86,7 +86,7 @@ def do_train(cfg):
     )
 
     if cfg.DATA.VAL != '':
-        dataset_val = dataset.ImageDataset(
+        dataset_val = ImageDataset(
             cfg, 
             img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
             mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
