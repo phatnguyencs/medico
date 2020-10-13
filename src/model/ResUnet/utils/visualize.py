@@ -12,18 +12,21 @@ from torchvision import transforms
 # warnings.simplefilter("ignore", (UserWarning, FutureWarning))
 
 def draw_mask(image, mask, thres=0.5, alpha=0.5, raw_shape=None):
-    if len(mask.shape) == 3:
+    if len(mask.shape) == 3 :
         mask = mask.squeeze(2)
     mask[mask < thres] = 0.0
-    
+
     if raw_shape is not None:
         # image = cv2.resize(image, dsize=(raw_shape['width'], raw_shape['height']))
         np2pil = transforms.ToPILImage()
-        pil_mask = transforms.Resize((raw_shape['height'], raw_shape['width']), Image.NEAREST)(np2pil(mask))
+        pil_mask = np2pil(mask)
+        pil_mask = transforms.Resize((raw_shape['height'], raw_shape['width']), Image.NEAREST)(pil_mask)
         mask = np.array(pil_mask)
+        
         # mask = cv2.resize(mask, dsize=(raw_shape['width'], raw_shape['height']))
-
+    
     image = image.copy()
+
     image[np.nonzero(mask)] = image[np.nonzero(mask)]*alpha + (1-alpha)*np.array([0,0,255], dtype=np.float)
     return image
 

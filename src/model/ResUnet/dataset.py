@@ -54,7 +54,7 @@ class ImageDataset(Dataset):
         image_mask_trans = [
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomAffine(degrees=90, scale=(0.8, 1.2), shear=(-4,4))
+            transforms.RandomAffine(degrees=45, scale=(0.8, 1.2), shear=(-2,2))
         ]
         self.img_mask_transform = transforms.Compose(image_mask_trans) 
         self.to_tensor_transform = transforms.ToTensor()
@@ -98,11 +98,15 @@ class ImageDataset(Dataset):
         '''
             Prepare an iamge ready to feed into ResUnet++ model
         '''
-        image = io.imread(img_path)
-        raw_shape = {'height': image.shape[0], 'width': image.shape[1]}
-        image = cv2.resize(image, dsize=cfg.MODEL.IMAGE_SIZE)
-        image = Image.fromarray(image).convert("RGB")
-        return transforms.functional.to_tensor(image), raw_shape
+        image = Image.open(img_path).convert("RGB")
+        raw_shape = {'height': image.size[1], 'width': image.size[0]}
+        image = transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST)(image)
+        image = transforms.ToTensor()(image)
+        image = transforms.Normalize(mean=cfg.TRAIN.NORMALIZE_MEAN, std=cfg.TRAIN.NORMALIZE_STD)(image)
+
+        raw_image = io.imread(img_path)
+
+        return image, raw_shape
 
 class ToTensorTarget(object):
     """Convert ndarrays in sample to Tensors."""

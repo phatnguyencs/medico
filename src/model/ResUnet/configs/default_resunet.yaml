@@ -1,12 +1,12 @@
-OUTPUT_DIR: './result/resunet++/Oct13_1'
-CHECKPOINT_PATH: '' #'./result/resunet++/Oct13_1/checkpoints/best_model.pt'
+OUTPUT_DIR: './result/resunet++/Oct12_1'
+CHECKPOINT_PATH: './result/resunet++/Oct12_1/checkpoints/'
 
 MODEL:
   IMAGE_SIZE: (448, 448)
 
 TRAIN:
   AUGMENT: True
-  SCHEDULER_PATIENCE: 10
+  SCHEDULER_PATIENCE: 8
 
 DATA:
   ROOT_DIR: './data'
@@ -24,7 +24,9 @@ SOLVER:
   LR: 0.001
 
 INFERENCE:
-  SAVE_DIR: './result/resunet++/Oct13_1'
+  SAVE_DIR: './result/resunet++/Oct12_1'
   CRF_STEP: 5
   CRF: False
+  MASK_THRES: 0.7
+
 
