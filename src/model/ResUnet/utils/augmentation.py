@@ -18,7 +18,13 @@ def create_transform(cfg, mode):
         image_trans, mask_trans
     '''
     assert mode in ['train', 'val', 'test']
-    if mode in ['train', 'val']:
+
+    image_mask_trans = [
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=45),
+        transforms.RandomVerticalFlip(p=0.5),
+    ]
+    if mode == 'train':
         image_trans = [
             transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST),
             transforms.ToTensor(),
@@ -28,7 +34,17 @@ def create_transform(cfg, mode):
             transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST),
             transforms.ToTensor(),
         ]
-
+        image_trans = image_mask_trans + image_trans
+    elif mode == 'val':
+        image_trans = [
+            transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+        ]
+        mask_trans = [
+            transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST),
+            transforms.ToTensor(),
+        ]
     elif mode == 'test':
         image_trans = [
             transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST),

@@ -8,6 +8,7 @@ from model.ResUnet.dataset import ImageDataset
 from model.ResUnet.utils import metrics
 from model.ResUnet.core.res_unet import ResUnet
 from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
+# from model.ResUnet.core.res_unet_plus_crf import ResUnetPlusPlus
 import torch
 import argparse
 import os
@@ -23,6 +24,9 @@ seed = 88
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 np.random.seed(seed)
+
+# def schedule_lr(optimizer, step):
+#     if step % 10 != 0:
 
 def save_checkpoint(model, epoch, optimizer, best_score, save_path):
     torch.save(
@@ -46,6 +50,8 @@ def do_train(cfg):
     save_path = os.path.join(checkpoint_dir, "best_model.pt" )
 
     # get model
+    # crf_model = setup_convcrf(cfg)
+    # model = ResUnetPlusPlus(3, crf_model).cuda()
     model = ResUnetPlusPlus(3).cuda()
 
     print(f"LOADED MODEL")
@@ -54,13 +60,15 @@ def do_train(cfg):
     criterion = metrics.BCEDiceLoss()
 
     # optimizer
-    # optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum, nesterov=True)
     # optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.SOLVER.LR, weight_decay=1e-5)
 
     # decay LR
     # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", patience=5, verbose=True)
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", 
+                                                        patience=cfg.TRAIN.SCHEDULER_PATIENCE, 
+                                                        factor=cfg.TRAIN.SCHEDULER_FACTOR,
+                                                        verbose=True)
 
     # optionally resume from a checkpoint
     if resume != '':
@@ -72,14 +80,11 @@ def do_train(cfg):
         print("=> loaded checkpoint '{}', epoch {}, best_score: {}".format(resume, checkpoint["epoch"], checkpoint['best_score']))
 
     # get data
-    image_transforms, label_transforms = aug.create_transform(cfg, 'train')
     dataset_train = ImageDataset(
         cfg, 
         img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
         mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
-        train=True,
-        image_transform=transforms.Compose(image_transforms),
-        label_transform=transforms.Compose(label_transforms),
+        train=True
     )
     train_dataloader = DataLoader(
         dataset_train, batch_size=cfg.SOLVER.BATCH_SIZE, num_workers=4, shuffle=True
@@ -90,9 +95,7 @@ def do_train(cfg):
             cfg, 
             img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
             mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
-            train=False,
-            image_transform=transforms.Compose(image_transforms),
-            label_transform=transforms.Compose(label_transforms),
+            train=False
         )
         val_dataloader = DataLoader(dataset_val, batch_size=1, num_workers=4, shuffle=False)
 
@@ -115,15 +118,15 @@ def do_train(cfg):
         for idx, data in enumerate(loader):
             # get the inputs and wrap in Variable
             inputs = data["sat_img"].cuda()
-            labels = data["map_img"].cuda()
+            labels = data["map_img"].cuda() # [batch, H, W]
 
             # zero the parameter gradients
             optimizer.zero_grad()
 
             # forward
-            outputs = model(inputs)
+            outputs = model(inputs) # [batch, 1, H, W]
             loss = criterion(outputs, labels)
-
+            
             # backward
             loss.backward()
             optimizer.step()
@@ -205,5 +208,5 @@ def setup():
 
 if __name__ == "__main__":
     args, cfg = setup()
-    do_train(cfg, name=args.name)
+    do_train(cfg)
     

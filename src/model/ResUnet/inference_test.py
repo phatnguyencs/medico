@@ -14,19 +14,27 @@ import argparse
 import os
 import os.path as osp
 from model.ResUnet.utils import (
-    get_parser,
-    get_default_config,
-    BCEDiceLoss,
-    MetricTracker,
-    jaccard_index,
-    dice_coeff,
+    get_parser,get_default_config,BCEDiceLoss,
+    MetricTracker,jaccard_index,dice_coeff,
     MyWriter,
 )
 from model.ResUnet.init_config import setup
 from model.ResUnet.utils.visualize import visualize_validation, visualize_prediction
 from model.ResUnet.dataset import ImageDataset
 
+def prepare_model(checkpoint_dir: str):
+    model = ResUnetPlusPlus(3).cuda()
 
+    resume = osp.join(checkpoint_dir, 'best_model.pt')
+    checkpoint = torch.load(resume)
+    model.load_state_dict(checkpoint['state_dict'])
+    print(f"LOADED MODEL SUCCESSFULLY")
+
+    model.eval()
+    return model
+
+def visualize_on_specific_folder(model, save_dir, folder_path):
+    list_imgs = os.listdir(folder_path)
 
 def main():
     # Setup
@@ -37,17 +45,8 @@ def main():
     test_img_dir = osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TEST_IMAGES)
     list_imgs = os.listdir(test_img_dir)
 
-    if cfg.MODEL.NAME == 'res_unet_plus':
-        model = ResUnetPlusPlus(3).cuda()
-    else:
-        model = ResUnet(3, 64).cuda()
-
-    resume = osp.join(checkpoint_dir, 'best_model.pt')
-    checkpoint = torch.load(resume)
-    model.load_state_dict(checkpoint['state_dict'])
-    print(f"LOADED MODEL SUCCESSFULLY")
-
-    model.eval()
+    model = prepare_model(checkpoint_dir)
+    
     vis_savedir = osp.join(cfg.INFERENCE.SAVE_DIR, 'visualize_test')
     os.makedirs(vis_savedir, exist_ok=True)
     with torch.no_grad():

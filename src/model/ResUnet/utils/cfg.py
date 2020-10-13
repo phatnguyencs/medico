@@ -10,6 +10,14 @@ def get_default_config():
     cfg.SOLVER = CN()
     cfg.MODEL = CN()
     cfg.INFERENCE = CN()
+    cfg.TRAIN = CN()
+
+    # ---------------------- TRAIN CONFIG ------------------------
+    cfg.TRAIN.AUGMENT = True
+    cfg.TRAIN.NORMALIZE_MEAN = [0.485, 0.456, 0.406]
+    cfg.TRAIN.NORMALIZE_STD = [0.229, 0.224, 0.225]
+    cfg.TRAIN.SCHEDULER_PATIENCE = 10
+    cfg.TRAIN.SCHEDULER_FACTOR = 0.1
 
     # ---------------------- COMMON CONFIG ------------------------
     cfg.OUTPUT_DIR = ''
@@ -32,6 +40,8 @@ def get_default_config():
     cfg.INFERENCE.SAVE_DIR = ''
     cfg.INFERENCE.MASK_THRES = 0.5
     cfg.INFERENCE.BATCH_SIZE = 10
+    cfg.INFERENCE.CRF =  False
+    cfg.INFERENCE.CRF_STEP = 10
 
     # ---------------------- SOLVER CONFIG ------------------------
     cfg.SOLVER.EPOCH = 100

@@ -12,11 +12,13 @@ import pandas as pd
 import numpy as np
 import random
 from PIL import Image
+# import albumentations as A
+
 
 class ImageDataset(Dataset):
     """Massachusetts Road and Building dataset"""
 
-    def __init__(self, cfg, img_path, mask_path, train=True, image_transform=None, label_transform=None):
+    def __init__(self, cfg, img_path, mask_path, train=True):
         """
         Args:
             csv_file (string): Path to the csv file with image paths
@@ -24,17 +26,18 @@ class ImageDataset(Dataset):
             root_dir (string): 'mass_roads', 'mass_roads_crop', or 'mass_buildings'
             transform (callable, optional): Optional transform to be applied on a sample.
         """
-        self.train = train
+        self.is_train = train
         self.img_path = img_path
         self.mask_path = mask_path
         
+        self.is_aug = cfg.TRAIN.AUGMENT
         self._load_csv_data(cfg)
-        self.image_transform = image_transform
-        self.label_transform = label_transform
         self.image_size = cfg.MODEL.IMAGE_SIZE
 
+        self._setup_transform(cfg)
+
     def _load_csv_data(self, cfg):
-        if self.train:
+        if self.is_train:
             df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN))
         else:
             df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.VAL))
@@ -44,6 +47,18 @@ class ImageDataset(Dataset):
         self.img_list = [osp.join(self.img_path, f'{s}.jpg') for s in self.list_img]
 
         print(f"Created dataset with {len(self.img_list)} images")
+
+    # Hard code augmentation for training step
+    def _setup_transform(self, cfg):
+        self.resize_transform = transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST)
+        image_mask_trans = [
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomAffine(degrees=90, scale=(0.8, 1.2), shear=(-4,4))
+        ]
+        self.img_mask_transform = transforms.Compose(image_mask_trans) 
+        self.to_tensor_transform = transforms.ToTensor()
+        self.normalize_transform = transforms.Normalize(mean=cfg.TRAIN.NORMALIZE_MEAN, std=cfg.TRAIN.NORMALIZE_STD)
 
     def __len__(self):
         return len(self.mask_list)
@@ -56,10 +71,14 @@ class ImageDataset(Dataset):
         mask = Image.open(maskpath)# .convert('L')
         original_width, original_height = image.size
 
-        if self.image_transform:
-            image = self.image_transform(image)
-        if self.label_transform:
-            mask = self.label_transform(mask)[0,:,:]
+        # augment when training only
+        if self.is_aug and self.is_train and idx % 2 == 0:
+            image = self.img_mask_transform(image)
+            mask = self.img_mask_transform(mask)
+
+        image, mask = self.resize_transform(image), self.resize_transform(mask)
+        image, mask = self.to_tensor_transform(image), self.to_tensor_transform(mask)[0,:,:]
+        image = self.normalize_transform(image)
 
         sample = {
             "sat_img": image,

@@ -1,23 +1,30 @@
-OUTPUT_DIR: './result/resunet++/Oct10_2'
-CHECKPOINT_PATH: './result/resunet++/Oct10/checkpoints/best_model.pt'
+OUTPUT_DIR: './result/resunet++/Oct13_1'
+CHECKPOINT_PATH: '' #'./result/resunet++/Oct13_1/checkpoints/best_model.pt'
 
 MODEL:
   IMAGE_SIZE: (448, 448)
+
+TRAIN:
+  AUGMENT: True
+  SCHEDULER_PATIENCE: 10
 
 DATA:
   ROOT_DIR: './data'
   TRAIN_IMAGES: 'train_images'
   TEST_IMAGES: 'test_images'
-  TRAIN_MASKS: 'masks'
+  TRAIN_MASKS: 'dfs_masks'
   
-  TRAIN: 'train3.csv'
-  VAL: 'val3.csv'
+  TRAIN: 'train4.csv'
+  VAL: 'val4.csv'
   
 SOLVER:
-  EPOCH: 100
+  EPOCH: 200
   BATCH_SIZE: 4
   EARLY_STOPPING: -1
   LR: 0.001
 
 INFERENCE:
-  SAVE_DIR: './result/resunet++/Oct10_2'
+  SAVE_DIR: './result/resunet++/Oct13_1'
+  CRF_STEP: 5
+  CRF: False
+

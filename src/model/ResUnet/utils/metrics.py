@@ -109,6 +109,44 @@ def dice_coeff(output, target):
 def calculate_f_score(precision, recall, base=2):
     return (1 + base**2)*(precision*recall)/((base**2 * precision) + recall)
 
+
+def calculate_all_metrics_numpy(preds, gt, cpu=True):
+    '''
+    Args:
+        preds, gt: [batch, C, H, W], here C = 1 for mask
+    Return:
+        {
+            'dice_coeff': np.array[dice-coeff scores]
+            'IoU': np.array[IoU scores]
+            'precision': np.array[Precision scores]
+            'recall': np.array[Recall scores]
+            'F2': np.array[F2 scores]
+        }
+    '''
+    batch_size = preds.size(0)
+    y_preds = preds.reshape(batch_size, -1)
+    y_true = gt.reshape(batch_size, -1)
+    smooth = 1.0
+    eps = 1e-5
+    intersection = torch.sum(y_preds*y_true, dim=1)
+    union = torch.sum(y_preds, 1) + torch.sum(y_true,1) - intersection
+
+    iou = intersection/(union + eps)
+    dice_coeff = (2.0*intersection + smooth)/(y_preds.sum(1) + y_true.sum(1) + smooth)
+    precision = intersection / (y_true.sum(1)  + eps)
+    recall = intersection / (y_preds.sum(1) + eps)
+    f2 = calculate_f_score(precision, recall, 2)
+
+    all_scores = {
+        'dice_coeff': dice_coeff,
+        'IoU': iou,
+        'precision': precision,
+        'recall': recall,
+        'F2': f2
+    }
+
+    return all_scores
+
 def calculate_all_metrics(preds, gt, cpu=True):
     '''
     Args:
