@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from torchvision import transforms
 
-
 # warnings.simplefilter("ignore", (UserWarning, FutureWarning))
 
 def draw_mask(image, mask, thres=0.5, alpha=0.5, raw_shape=None):

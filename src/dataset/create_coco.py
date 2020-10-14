@@ -3,16 +3,23 @@ import os
 import os.path as osp
 import json
 import cv2
-from dataset.utils import create_coco_mask_annotation, get_image_size_given_path
 from tqdm import tqdm
+import pandas as pd
+
+from dataset.utils import create_coco_mask_annotation, get_image_size_given_path
 
 class COCOconverter(object):
-    def __init__(self, mask_dir: str, img_dir: str, box_json: str):
+    def __init__(self, mask_dir: str, img_dir: str, box_json: str, csv_path=None):
         self.mask_dir=mask_dir
         self.img_dir=img_dir
         self.box_info = json.load(open(box_json, 'r'))
         self.default_dataset_id = 88
         self.default_color = '#7ad54d'
+        self.list_imgs = []
+
+        if csv_path is not None:
+            self.list_imgs = pd.read_csv(csv_path)['image'].to_list()
+
 
     def _create_image_item(self, category_ids: list, img_name: str, img_id:str, width: int, height: int):
         res = {}
@@ -72,6 +79,13 @@ class COCOconverter(object):
             'metadata': {},
         }
 
+    def _filter_with_csv(self, img_name):
+        if len(self.list_imgs) == 0:
+            return True
+        if img_name in self.list_imgs:
+            return True
+        return False
+
     def process(self):
         categories, images, annotations = [], [], []
         category_map = {}
@@ -80,6 +94,9 @@ class COCOconverter(object):
         annot_id = 0
 
         for img_name, value in tqdm(self.box_info.items()):
+            if self._filter_with_csv(img_name) == False:
+                continue
+
             img_id = str(image_id)
             image_id += 1
             img_cat_ids = []
@@ -103,6 +120,7 @@ class COCOconverter(object):
             img_item = self._create_image_item(category_ids=img_cat_ids, img_name=img_name, img_id=img_id, width=W, height=H)
             images.append(img_item)
         
+        print(f"converted {image_id} samples to COCO format") 
         return {
             'annotations': annotations,
             'categories': categories,
