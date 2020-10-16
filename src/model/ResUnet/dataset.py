@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 import random
 from PIL import Image
-# import albumentations as A
+import albumentations as A
 
 
 class ImageDataset(Dataset):
@@ -51,12 +51,29 @@ class ImageDataset(Dataset):
     # Hard code augmentation for training step
     def _setup_transform(self, cfg):
         self.resize_transform = transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST)
-        image_mask_trans = [
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomAffine(degrees=45, scale=(0.8, 1.2), shear=(-2,2))
-        ]
-        self.img_mask_transform = transforms.Compose(image_mask_trans) 
+        # image_mask_trans = [
+        #     transforms.RandomHorizontalFlip(p=0.5),
+        #     transforms.RandomVerticalFlip(p=0.5),
+        #     transforms.RandomAffine(degrees=45, scale=(0.8, 1.2), shear=(-2,2))
+        # ]
+        # self.img_mask_transform = transforms.Compose(image_mask_trans) 
+        self.img_mask_transform = A.Compose([
+            A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=30),
+            A.Flip(),
+            A.Transpose(),
+            A.ElasticTransform(),
+            A.Cutout(num_holes=8, max_h_size=8, max_w_size=8, fill_value=0,p=0.5),
+    #         A.OneOf([
+    #                 A.RandomCrop(height=size_crop,width=size_crop,p=0.5),  
+    #                 A.CenterCrop(height=size_crop,width=size_crop,p=0.5)
+    #             ]),
+            ],p=0.9)
+        self.img_pixel_transform = A.Compose([
+            A.GaussNoise(),
+            A.Blur(blur_limit=3),
+            A.RandomBrightnessContrast(),
+            A.HueSaturationValue(hue_shift_limit=3,sat_shift_limit=20,val_shift_limit=3 ,p=0.5),
+        ],p=0.5)
         self.to_tensor_transform = transforms.ToTensor()
         self.normalize_transform = transforms.Normalize(mean=cfg.TRAIN.NORMALIZE_MEAN, std=cfg.TRAIN.NORMALIZE_STD)
 
@@ -72,9 +89,14 @@ class ImageDataset(Dataset):
         original_width, original_height = image.size
 
         # augment when training only
-        if self.is_aug and self.is_train and idx % 2 == 0:
-            image = self.img_mask_transform(image)
-            mask = self.img_mask_transform(mask)
+        # if self.is_aug and self.is_train and idx % 2 == 0:
+        if self.is_aug and self.is_train:
+            transformed = self.img_mask_transform(image=np.array(image), mask=np.array(mask))
+            image = transformed['image']
+            mask = transformed['mask']
+            image = self.img_pixel_transform(image=image)['image']
+
+            image, mask = Image.fromarray(image), Image.fromarray(mask)
 
         image, mask = self.resize_transform(image), self.resize_transform(mask)
         image, mask = self.to_tensor_transform(image), self.to_tensor_transform(mask)[0,:,:]

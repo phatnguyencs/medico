@@ -11,6 +11,7 @@ def get_default_config():
     cfg.MODEL = CN()
     cfg.INFERENCE = CN()
     cfg.TRAIN = CN()
+    cfg.TRAIN.TSA = CN()
 
     # ---------------------- TRAIN CONFIG ------------------------
     cfg.TRAIN.AUGMENT = True
@@ -18,6 +19,11 @@ def get_default_config():
     cfg.TRAIN.NORMALIZE_STD = [0.229, 0.224, 0.225]
     cfg.TRAIN.SCHEDULER_PATIENCE = 10
     cfg.TRAIN.SCHEDULER_FACTOR = 0.1
+
+    # TODO: need to re-assign these params
+    cfg.TRAIN.TSA.ALPHA = 5
+    cfg.TRAIN.TSA.TEMPERATURE = 5
+    cfg.TRAIN.TSA.NUMSTEPS = 20
 
     # ---------------------- COMMON CONFIG ------------------------
     cfg.OUTPUT_DIR = ''

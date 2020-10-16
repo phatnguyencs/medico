@@ -54,7 +54,6 @@ def visualize_prediction(images, masks, savepaths, cfg, raw_shape=None):
         plt.savefig(savepaths[i])
         plt.clf()
 
-
 def visualize_validation(image_paths, gts, masks, savepaths, scores, cfg, raw_shape):
     '''
     Args:

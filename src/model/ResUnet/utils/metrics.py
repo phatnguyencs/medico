@@ -3,6 +3,50 @@ from torch import nn
 import numpy as np
 import json
 
+class TSA_BCEDiceLoss(nn.Module):
+    def __init__(self, cfg, num_steps, cuda=True):
+        self.alpha = cfg.TRAIN.TSA.ALPHA
+        self.current_step = 0
+        self.num_classes = 2
+        self.temperature = cfg.TRAIN.TSA.TEMPERATURE
+        self.num_steps = num_steps
+        self.cuda = cuda
+        super().__init__()
+
+    def step(self):
+        self.current_step += 1
+    
+    def threshold(self, batch_size):
+        # thres = alpha*(1 - 1/K) + 1/K
+        thres = torch.exp(torch.Tensor(batch_size*[self.alpha*(self.current_step/self.num_steps - 1)])) * \
+            (1 - 1/self.num_classes) + 1/self.num_classes
+        if (self.cuda):
+            thres = thres.cuda()
+        
+        return thres
+
+    def forward(self, pred, target):
+        batch_size = pred.shape[0]
+        thres = self.threshold(batch_size)
+        pred = pred.view(batch_size, -1)
+        target = target.view(batch_size, -1)
+
+        # BCE loss
+        bce_loss = nn.BCELoss(reduction='none')(pred, target).mean(dim=-1).double() # [B]
+
+        # Dice Loss
+        dice_coef = (2.0 * (pred * target).double().sum(dim=-1) + 1) / (
+            pred.double().sum(dim=-1) + target.double().sum(dim=-1) + 1
+        ) # [B, -1]
+
+        mask = (dice_coef < thres).detach().double()
+        loss = torch.mean((bce_loss + (1 - dice_coef))*mask)
+
+        self.step()
+        # loss = (1 - dice_coef)
+        return loss
+
+
 class BCEDiceLoss(nn.Module):
     def __init__(self, weight=None, size_average=True):
         super().__init__()
@@ -22,6 +66,8 @@ class BCEDiceLoss(nn.Module):
         loss = bce_loss + (1 - dice_coef)
         # loss = (1 - dice_coef)
         return loss
+
+
 
 # https://github.com/pytorch/examples/blob/master/imagenet/main.py
 class MetricTracker(object):

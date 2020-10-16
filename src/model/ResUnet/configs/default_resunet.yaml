@@ -1,12 +1,12 @@
-OUTPUT_DIR: './result/resunet++/Oct12_1'
-CHECKPOINT_PATH: './result/resunet++/Oct12_1/checkpoints/'
+OUTPUT_DIR: './result/resunet++/Oct16_2'
+CHECKPOINT_PATH: '' #'./result/resunet++/Oct12_1/checkpoints/'
 
 MODEL:
-  IMAGE_SIZE: (448, 448)
+  IMAGE_SIZE: (256, 256)
 
 TRAIN:
   AUGMENT: True
-  SCHEDULER_PATIENCE: 8
+  SCHEDULER_PATIENCE: 6
 
 DATA:
   ROOT_DIR: './data'
@@ -19,12 +19,12 @@ DATA:
   
 SOLVER:
   EPOCH: 200
-  BATCH_SIZE: 4
+  BATCH_SIZE: 12
   EARLY_STOPPING: -1
   LR: 0.001
 
 INFERENCE:
-  SAVE_DIR: './result/resunet++/Oct12_1'
+  SAVE_DIR: './result/resunet++/Oct16_2'
   CRF_STEP: 5
   CRF: False
   MASK_THRES: 0.7

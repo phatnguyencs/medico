@@ -53,11 +53,9 @@ def do_train(cfg):
     # crf_model = setup_convcrf(cfg)
     # model = ResUnetPlusPlus(3, crf_model).cuda()
     model = ResUnetPlusPlus(3).cuda()
-
     print(f"LOADED MODEL")
 
-    # set up binary cross entropy and dice loss
-    criterion = metrics.BCEDiceLoss()
+
 
     # optimizer
     # optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
@@ -80,24 +78,30 @@ def do_train(cfg):
         print("=> loaded checkpoint '{}', epoch {}, best_score: {}".format(resume, checkpoint["epoch"], checkpoint['best_score']))
 
     # get data
-    dataset_train = ImageDataset(
+    train_dataset = ImageDataset(
         cfg, 
         img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
         mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
         train=True
     )
     train_dataloader = DataLoader(
-        dataset_train, batch_size=cfg.SOLVER.BATCH_SIZE, num_workers=4, shuffle=True
+        train_dataset, batch_size=cfg.SOLVER.BATCH_SIZE, num_workers=4, shuffle=True
     )
 
     if cfg.DATA.VAL != '':
-        dataset_val = ImageDataset(
+        val_dataset = ImageDataset(
             cfg, 
             img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
             mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
             train=False
         )
-        val_dataloader = DataLoader(dataset_val, batch_size=1, num_workers=4, shuffle=False)
+        val_dataloader = DataLoader(val_dataset, batch_size=1, num_workers=4, shuffle=False)
+
+
+    # set up binary cross entropy and dice loss
+    # criterion = metrics.BCEDiceLoss()
+    criterion = metrics.TSA_BCEDiceLoss(cfg, num_steps = cfg.SOLVER.EPOCH*int((len(train_dataset)-1)/cfg.SOLVER.BATCH_SIZE + 1))
+    val_criterion = metrics.BCEDiceLoss()
 
     # starting params
     best_loss, best_score = 999, 0.0
@@ -117,7 +121,7 @@ def do_train(cfg):
         loader = tqdm(train_dataloader, desc="training")
         for idx, data in enumerate(loader):
             # get the inputs and wrap in Variable
-            inputs = data["sat_img"].cuda()
+            inputs = data["sat_img"].cuda() # [batch, C, H, W]
             labels = data["map_img"].cuda() # [batch, H, W]
 
             # zero the parameter gradients
@@ -125,6 +129,7 @@ def do_train(cfg):
 
             # forward
             outputs = model(inputs) # [batch, 1, H, W]
+
             loss = criterion(outputs, labels)
             
             # backward
@@ -147,7 +152,7 @@ def do_train(cfg):
         if cfg.DATA.VAL == '':
             continue
 
-        valid_metrics = do_val(val_dataloader, model, criterion, writer, epoch)
+        valid_metrics = do_val(val_dataloader, model, val_criterion, writer, epoch)
         
         lr_scheduler.step(valid_metrics['dice_coeff'])
 
