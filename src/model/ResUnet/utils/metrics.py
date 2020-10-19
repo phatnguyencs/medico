@@ -8,7 +8,7 @@ class TSA_BCEDiceLoss(nn.Module):
         self.alpha = cfg.TRAIN.TSA.ALPHA
         self.current_step = 0
         self.num_classes = 2
-        self.temperature = cfg.TRAIN.TSA.TEMPERATURE
+        self.temperature = cfg.TRAIN.TSA.TEMPERATURE # in case we use softmax
         self.num_steps = num_steps
         self.cuda = cuda
         self.thres_history = []
@@ -22,9 +22,9 @@ class TSA_BCEDiceLoss(nn.Module):
         alpha_3 = torch.exp(torch.Tensor(batch_size*[self.alpha*(self.current_step/self.num_steps - 1)]))
 
         # alpha_1: a = 1 - exp(5* -t/T)
-        alpha_1 = 1 - torch.exp(torch.Tensor(batch_size*[self.alpha*self.current_step/self.num_steps])) 
+        alpha_1 = 1 - torch.exp(torch.Tensor(batch_size*[-self.alpha*self.current_step/self.num_steps])) 
         
-        thres = alpha_3*(1-1/self.num_classes) + 1/self.num_classes
+        thres = alpha_1*(1-1/self.num_classes) + 1/self.num_classes
 
         self.thres_history.append(thres[0].item())
         
@@ -48,18 +48,15 @@ class TSA_BCEDiceLoss(nn.Module):
         ) # [B, -1]
 
         mask = (dice_coef < thres).detach().double()
-        # n_under_thres = torch.sum(mask).item()
-        # n_over_thres = batch_size - n_under_thres
-        # mask[mask == 0] = max(n_over_thres, n_under_thres)/batch_size
-        # mask[mask == 1] += min(n_over_thres, n_under_thres)/batch_size
+        n_under_thres = torch.sum(mask).item()
+        n_over_thres = batch_size - n_under_thres
+        mask[mask == 0] = max(n_over_thres, n_under_thres)/batch_size
+        mask[mask == 1] += min(n_over_thres, n_under_thres)/batch_size
         
         loss = torch.mean((bce_loss + (1 - dice_coef))*mask)
-        # print(f"dice_coeff: {dice_coef}")
-        # print(f"thres: {thres}")
-        # print(f"original loss: {torch.mean((bce_loss + (1 - dice_coef)))}")
-        # print(f"tsa loss: {loss}")
+        
         self.step()
-        # loss = (1 - dice_coef)
+        
         return loss
 
 

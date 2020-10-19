@@ -25,8 +25,11 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 np.random.seed(seed)
 
-# def schedule_lr(optimizer, step):
-#     if step % 10 != 0:
+def free_gpu_memory():
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
+
 
 def save_checkpoint(model, epoch, optimizer, best_score, save_path, criterion=None):
     dict_to_save = {
@@ -49,6 +52,7 @@ def do_train(cfg):
     writer = MyWriter("{}/{}".format(cfg.OUTPUT_DIR, 'log'))
     save_path = os.path.join(checkpoint_dir, "best_model.pt" )
 
+    free_gpu_memory()
     # get model
     # crf_model = setup_convcrf(cfg)
     # model = ResUnetPlusPlus(3, crf_model).cuda()
@@ -62,7 +66,7 @@ def do_train(cfg):
     # decay LR
     # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", 
     #                 patience=cfg.TRAIN.SCHEDULER_PATIENCE, factor=cfg.TRAIN.SCHEDULER_FACTOR, verbose=True)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer,milestones=[160,250],gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer,milestones=[50, 100, 250],gamma=0.1)
     
     # optionally resume from a checkpoint
     if resume != '':
@@ -140,6 +144,7 @@ def do_train(cfg):
                 "Training Loss: {:.4f}, dice_coeff: {:.4f}".format(train_loss.avg, train_acc.avg)
             )
         
+        free_gpu_memory()
         # tensorboard logging
         print(f"Training Loss: {train_loss.avg:.4f}, dice_coeff: {train_acc.avg:.4f}")
         writer.log_training(train_loss.avg, train_acc.avg, epoch)

@@ -19,7 +19,7 @@ DATA:
   VAL: 'val4.csv'
   
 SOLVER:
-  EPOCH: 200
+  EPOCH: 300
   BATCH_SIZE: 12
   EARLY_STOPPING: -1
   LR: 0.0001

@@ -68,14 +68,14 @@ class ImageDataset(Dataset):
             ],p=0.8)
 
         self.img_pixel_transform = A.Compose([
-            OneOf([
-                IAAAdditiveGaussianNoise(),
-                GaussNoise(),
+            A.OneOf([
+                A.IAAAdditiveGaussianNoise(),
+                A.GaussNoise(),
             ], p=0.2),
-            OneOf([
-                MotionBlur(p=0.2),
-                MedianBlur(blur_limit=3, p=0.1),
-                Blur(blur_limit=3, p=0.1),
+            A.OneOf([
+                A.MotionBlur(p=0.2),
+                A.MedianBlur(blur_limit=3, p=0.1),
+                A.Blur(blur_limit=3, p=0.1),
             ], p=0.2),
             A.OneOf([
                 A.IAASharpen(),
