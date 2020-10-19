@@ -14,7 +14,6 @@ import random
 from PIL import Image
 import albumentations as A
 
-
 class ImageDataset(Dataset):
     """Massachusetts Road and Building dataset"""
 
@@ -33,7 +32,7 @@ class ImageDataset(Dataset):
         self.is_aug = cfg.TRAIN.AUGMENT
         self._load_csv_data(cfg)
         self.image_size = cfg.MODEL.IMAGE_SIZE
-
+        self.size_crop = 448
         self._setup_transform(cfg)
 
     def _load_csv_data(self, cfg):
@@ -50,30 +49,43 @@ class ImageDataset(Dataset):
 
     # Hard code augmentation for training step
     def _setup_transform(self, cfg):
-        self.resize_transform = transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST)
-        # image_mask_trans = [
-        #     transforms.RandomHorizontalFlip(p=0.5),
-        #     transforms.RandomVerticalFlip(p=0.5),
-        #     transforms.RandomAffine(degrees=45, scale=(0.8, 1.2), shear=(-2,2))
-        # ]
-        # self.img_mask_transform = transforms.Compose(image_mask_trans) 
+        # Albumentation example: https://albumentations.readthedocs.io/en/latest/examples.html
         self.img_mask_transform = A.Compose([
-            A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=30),
+            A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=45),
             A.Flip(),
             A.Transpose(),
-            A.ElasticTransform(),
+            A.OneOf([
+                A.ElasticTransform(),
+                A.OpticalDistortion(),
+                A.GridDistortion(),
+                A.IAAPiecewiseAffine(),
+            ]),
+            A.OneOf([
+                    A.RandomCrop(height=self.size_crop,width=self.size_crop,p=0.5),  
+                    A.CenterCrop(height=self.size_crop,width=self.size_crop,p=0.5)
+            ]),            
             A.Cutout(num_holes=8, max_h_size=8, max_w_size=8, fill_value=0,p=0.5),
-    #         A.OneOf([
-    #                 A.RandomCrop(height=size_crop,width=size_crop,p=0.5),  
-    #                 A.CenterCrop(height=size_crop,width=size_crop,p=0.5)
-    #             ]),
-            ],p=0.9)
+            ],p=0.8)
+
         self.img_pixel_transform = A.Compose([
-            A.GaussNoise(),
-            A.Blur(blur_limit=3),
-            A.RandomBrightnessContrast(),
-            A.HueSaturationValue(hue_shift_limit=3,sat_shift_limit=20,val_shift_limit=3 ,p=0.5),
+            OneOf([
+                IAAAdditiveGaussianNoise(),
+                GaussNoise(),
+            ], p=0.2),
+            OneOf([
+                MotionBlur(p=0.2),
+                MedianBlur(blur_limit=3, p=0.1),
+                Blur(blur_limit=3, p=0.1),
+            ], p=0.2),
+            A.OneOf([
+                A.IAASharpen(),
+                A.IAAEmboss(),
+                A.RandomBrightnessContrast(),            
+            ], p=0.3),
+            A.HueSaturationValue(hue_shift_limit=3,sat_shift_limit=20,val_shift_limit=3 ,p=0.2),
         ],p=0.5)
+        # Torch transform
+        self.resize_transform = transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST)
         self.to_tensor_transform = transforms.ToTensor()
         self.normalize_transform = transforms.Normalize(mean=cfg.TRAIN.NORMALIZE_MEAN, std=cfg.TRAIN.NORMALIZE_STD)
 
@@ -91,6 +103,11 @@ class ImageDataset(Dataset):
         # augment when training only
         # if self.is_aug and self.is_train and idx % 2 == 0:
         if self.is_aug and self.is_train:
+            if original_width < self.size_crop or original_height < self.size_crop:
+                new_size = int(self.size_crop*1.2)
+                image=image.resize((new_size, new_size))
+                mask=mask.resize((new_size, new_size))
+
             transformed = self.img_mask_transform(image=np.array(image), mask=np.array(mask))
             image = transformed['image']
             mask = transformed['mask']
@@ -129,114 +146,3 @@ class ImageDataset(Dataset):
         raw_image = io.imread(img_path)
 
         return image, raw_shape
-
-class ToTensorTarget(object):
-    """Convert ndarrays in sample to Tensors."""
-
-    def __call__(self, sample):
-        sat_img, map_img = sample["sat_img"], sample["map_img"]
-        
-        # swap color axis because
-        # numpy image: H x W x C
-        # torch image: C X H X W
-        return {
-            "sat_img": transforms.functional.to_tensor(sat_img), # [C, H, W]
-            "map_img": transforms.functional.to_tensor(map_img), #[1, H, W]
-            # torch.from_numpy(map_img).unsqueeze(0).float().div(255),#[1, H, W]
-        }  # unsqueeze for the channel dimension
-
-class NormalizeTarget(transforms.Normalize):
-    """Normalize a tensor and also return the target"""
-
-    def __call__(self, sample):
-        return {
-            "sat_img": transforms.functional.normalize(sample["sat_img"], self.mean, self.std),
-            "map_img": sample["map_img"],
-        }
-
-
-
-# https://discuss.pytorch.org/t/simple-way-to-inverse-transform-normalization/4821/3
-class UnNormalize(object):
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-
-    def __call__(self, tensor):
-        """
-        Args:
-            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
-        Returns:
-            Tensor: Normalized image.
-        """
-        for t, m, s in zip(tensor, self.mean, self.std):
-            t.mul_(s).add_(m)
-            # The normalize code -> t.sub_(m).div_(s)
-        return tensor
-
-class Rotate(object):
-    def __init__(self, degree=list(range(0, 90, 10))):
-        self.degree = random.choice(degree)
-    
-    def __call__(self, sample):
-        """
-        Args:
-            sample: Tensor of image and mask
-        Returns:
-            dictionary of result
-        """
-        return {
-            'sat_img': transforms.functional.rotate(sample['sat_img'], self.degree),
-            'map_img': transforms.functional.rotate(sample['map_img'], self.degree),
-        }
-
-class AdjustBrightness(object):
-    def __init__(self, brightness_factor=[0.5, 0.75, 1., 1.25, 1.5]):
-        self.brightness_factor = random.choice(brightness_factor)
-    
-    def __call__(self, sample):
-        """
-        Args:
-            sample: Tensor of image and mask
-        Returns:
-            dictionary of result
-        """
-        return {
-            'sat_img': transforms.functional.adjust_brightness(sample['sat_img'], self.brightness_factor),
-            'map_img': sample['map_img']
-        }
-
-class AdjustGamma(object):
-    def __init__(self, gamma=[0.5, 0.75, 1., 1.25, 1.5]):
-        self.gamma = random.choice(gamma)
-    
-    def __call__(self, sample):
-        """
-        Args:
-            sample: Tensor of image and mask
-        Returns:
-            dictionary of result
-        """
-        return {
-            'sat_img': transforms.functional.adjust_gamma(sample['sat_img'], self.gamma),
-            'map_img': sample['map_img'],
-        }
-
-class AdjustContrast(object):
-    def __init__(self, contrast_factor=[0.5, 0.75, 1., 1.25, 1.5]):
-        self.contrast_factor = random.choice(contrast_factor)
-    
-    def __call__(self, sample):
-        """
-        Args:
-            sample: Tensor of image and mask
-        Returns:
-            dictionary of result
-        """
-        return {
-            'sat_img': transforms.functional.adjust_contrast(sample['sat_img'], self.contrast_factor),
-            'map_img': sample['map_img'],
-        }
-
-def create_dataset(cfg, mode='train', transforms=None):
-    pass

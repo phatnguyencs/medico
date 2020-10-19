@@ -1,4 +1,4 @@
-OUTPUT_DIR: './result/resunet++/Oct16_2'
+OUTPUT_DIR: './result/resunet++/Oct18_2'
 CHECKPOINT_PATH: '' #'./result/resunet++/Oct12_1/checkpoints/'
 
 MODEL:
@@ -6,7 +6,8 @@ MODEL:
 
 TRAIN:
   AUGMENT: True
-  SCHEDULER_PATIENCE: 6
+  SCHEDULER_PATIENCE: 5
+  SCHEDULER_FACTOR: 0.1
 
 DATA:
   ROOT_DIR: './data'
@@ -21,10 +22,10 @@ SOLVER:
   EPOCH: 200
   BATCH_SIZE: 12
   EARLY_STOPPING: -1
-  LR: 0.001
+  LR: 0.0001
 
 INFERENCE:
-  SAVE_DIR: './result/resunet++/Oct16_2'
+  SAVE_DIR: './result/resunet++/Oct18_2'
   CRF_STEP: 5
   CRF: False
   MASK_THRES: 0.7

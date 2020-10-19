@@ -28,16 +28,16 @@ np.random.seed(seed)
 # def schedule_lr(optimizer, step):
 #     if step % 10 != 0:
 
-def save_checkpoint(model, epoch, optimizer, best_score, save_path):
-    torch.save(
-        {
-            "epoch": epoch,
-            "state_dict": model.state_dict(),
-            "best_score": best_score,
-            "optimizer": optimizer.state_dict(),
-        },
-        save_path,
-    )
+def save_checkpoint(model, epoch, optimizer, best_score, save_path, criterion=None):
+    dict_to_save = {
+        "epoch": epoch,
+        "state_dict": model.state_dict(),
+        "best_score": best_score,
+        "optimizer": optimizer.state_dict(),
+    }
+    if criterion is not None:
+        dict_to_save['tsa_thres_history'] = criterion.thres_history
+    torch.save(dict_to_save,save_path)
     print("Saved checkpoint to: %s" % save_path)
 
 def do_train(cfg):
@@ -55,19 +55,15 @@ def do_train(cfg):
     model = ResUnetPlusPlus(3).cuda()
     print(f"LOADED MODEL")
 
-
-
     # optimizer
     # optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.SOLVER.LR, weight_decay=1e-5)
 
     # decay LR
-    # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", 
-                                                        patience=cfg.TRAIN.SCHEDULER_PATIENCE, 
-                                                        factor=cfg.TRAIN.SCHEDULER_FACTOR,
-                                                        verbose=True)
-
+    # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", 
+    #                 patience=cfg.TRAIN.SCHEDULER_PATIENCE, factor=cfg.TRAIN.SCHEDULER_FACTOR, verbose=True)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer,milestones=[160,250],gamma=0.1)
+    
     # optionally resume from a checkpoint
     if resume != '':
         checkpoint = torch.load(resume)
@@ -168,7 +164,10 @@ def do_train(cfg):
         
         # save last model
         if epoch == num_epochs - 1:
-            save_checkpoint(model, num_epochs, optimizer, valid_metrics['valid_loss'], save_path.replace('best_model', 'final_model'))
+            save_checkpoint(model, num_epochs, optimizer, 
+            valid_metrics['valid_loss'], 
+                save_path.replace('best_model', 'final_model')
+            )
 
 def do_val(valid_loader, model, criterion, logger, step):
 
