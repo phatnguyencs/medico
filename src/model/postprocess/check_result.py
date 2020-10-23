@@ -2,6 +2,7 @@ import os
 import os.path as osp 
 import shutil
 import tqdm
+import torch
 
 data_dir = 'data'
 date = 'Oct12_1'
@@ -20,9 +21,9 @@ org_test = os.listdir(org_test_dir)
 org_train = os.listdir(osp.join(data_dir, 'train_images'))
 
 
-
-for org_img in tqdm.tqdm(easy_test):
-    if org_img in hard_test:
-        print(org_img)
-    
+def check_checkpoint(ckpt_path: str):
+    checkpoint = torch.load(ckpt_path)
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.SOLVER.LR, weight_decay=1e-5)
+    optimizer.load_state_dict(checkpoint["optimizer"])
+    print(f"epoch trained: {checkpoint['epoch']}, lr: {optimizer.param_groups[0]['lr']}, best score: {checkpoint['best_score']}")
 

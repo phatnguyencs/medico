@@ -1,23 +1,24 @@
 import warnings
 warnings.filterwarnings("ignore")
-
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from tqdm import tqdm
-import model.ResUnet.dataset as dataset
-from model.ResUnet.utils import metrics
-from model.ResUnet.core.res_unet import ResUnet
-from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
 import torch
 import argparse
 import os
 import os.path as osp
 import numpy as np
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from tqdm import tqdm
+
+import model.ResUnet.dataset as dataset
+from model.ResUnet.utils import metrics
+from model.ResUnet.core.res_unet import ResUnet
+from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
+
 from model.ResUnet.utils import (
     get_parser,get_default_config,BCEDiceLoss,MetricTracker,jaccard_index,dice_coeff,MyWriter,
 )
 from model.ResUnet.init_config import setup
-from model.ResUnet.utils.visualize import visualize_validation
+from model.ResUnet.utils.visualize import visualize_validation, thresholding_mask
 from model.ResUnet.utils import augmentation as aug
 
 # import conv_crf
@@ -36,23 +37,30 @@ def refine_result(images, masks, crf_model, cfg):
     
     return torch.Tensor(np_masks.transpose(0, 3, 1, 2)) # covnert back to [batch, 1, H, W]
 
-def main():
+def inference(model, cfg, dataset_type = 'val'):
+    '''
+    Args:
+        dataset_type: 'train' or 'val', to inference on train/val set
+                    >> output image: [input, groundtruth, prediction]
+    '''
     # Setup
-    args, cfg = setup()
-    checkpoint_dir = f"{cfg.OUTPUT_DIR}/checkpoints"
     batch_size = cfg.INFERENCE.BATCH_SIZE
+    csv2load = cfg.DATA.VAL
+    if dataset_type == 'train':
+        csv2load = cfg.DATA.TRAIN
+
 
     dataset_val = dataset.ImageDataset(
         cfg, 
         img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
         mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
         train=False,
+        csv_file=csv2load
     )
     val_dataloader = DataLoader(dataset_val, batch_size=batch_size, num_workers=4, shuffle=False)
     val_tracker = metrics.ValidationTracker()
 
-    # Load checkpoint
-    model = ResUnetPlusPlus(3).cuda()
+    
 
     crf_model, crf_val_tracker = None, None
 
@@ -60,16 +68,11 @@ def main():
         crf_model = get_dcrf_model(cfg.MODEL.IMAGE_SIZE)
         crf_val_tracker = metrics.ValidationTracker()
 
-    resume = osp.join(checkpoint_dir, 'best_model.pt')
-    checkpoint = torch.load(resume)
-    model.load_state_dict(checkpoint['state_dict'])
-    print(f"LOADED MODEL SUCCESSFULLY")
-
-    visualization_save_dir = osp.join(cfg.INFERENCE.SAVE_DIR, 'visualize_val')
+    visualization_save_dir = osp.join(cfg.INFERENCE.SAVE_DIR, f'{dataset_type}_visualize_{cfg.INFERENCE.MASK_THRES:.01f}')
     os.makedirs(visualization_save_dir, exist_ok=True)
     
     if cfg.INFERENCE.CRF:
-        crf_visualization_save_dir = osp.join(cfg.INFERENCE.SAVE_DIR, 'visualize_val_crf')
+        crf_visualization_save_dir = osp.join(cfg.INFERENCE.SAVE_DIR, f'{dataset_type}_visualize_crf_{cfg.INFERENCE.MASK_THRES:.01f}')
         os.makedirs(crf_visualization_save_dir, exist_ok=True)
 
     # do inference
@@ -83,7 +86,7 @@ def main():
             img_paths, raw_shape = data['image_path'], data['raw_shape']
 
             outputs = model(inputs)
-            
+            outputs = thresholding_mask(outputs, cfg.INFERENCE.MASK_THRES)
             imgs = inputs.cpu().permute(0, 2, 3, 1).numpy()
             gts = labels.cpu().numpy()
             
@@ -91,7 +94,7 @@ def main():
                 crf_preds = refine_result(inputs, outputs, crf_model, cfg)
                 crf_all_scores = metrics.calculate_all_metrics(crf_preds.cuda(), labels)
                 crf_preds = crf_preds.cpu().permute(0, 2, 3, 1).numpy()
-                crf_val_tracker.update(crf_all_scores)
+                crf_val_tracker.update(crf_all_scores) 
                 img_names = [p.strip().split('/')[-1] for p in img_paths]
                 save_paths = [osp.join(visualization_save_dir, p) for p in img_names]
                 visualize_validation(img_paths, gts, crf_preds, save_paths, crf_all_scores, cfg, raw_shape)
@@ -102,17 +105,27 @@ def main():
             preds = outputs.cpu().permute(0, 2, 3, 1).numpy()
             
             val_tracker.update(all_scores)
-            visualize_validation(img_paths, gts, preds, save_paths, all_scores, cfg, raw_shape)
+            visualize_validation(img_paths, gts, preds, visualization_save_dir, all_scores, cfg, raw_shape)
         
-        val_tracker.to_json(osp.join(cfg.INFERENCE.SAVE_DIR, 'scores.json'))
+        val_tracker.to_json(osp.join(cfg.INFERENCE.SAVE_DIR, f'{dataset_type}_scores_{cfg.INFERENCE.MASK_THRES:.01f}.json'))
 
         if crf_val_tracker:
-            crf_val_tracker.to_json(osp.join(cfg.INFERENCE.SAVE_DIR, 'crf_scores.json'))
+            crf_val_tracker.to_json(osp.join(cfg.INFERENCE.SAVE_DIR, f'{dataset_type}_crf_scores_{cfg.INFERENCE.MASK_THRES:.01f}.json'))
 
-        
 
 if __name__ == "__main__":
-    main()
+    args, cfg = setup()
+
+    # Load checkpoint
+    model = ResUnetPlusPlus(3).cuda()
+    checkpoint_dir = f"{cfg.OUTPUT_DIR}/checkpoints"
+    resume = osp.join(checkpoint_dir, 'best_model.pt')
+    checkpoint = torch.load(resume)
+    model.load_state_dict(checkpoint['state_dict'])
+    print(f"LOADED MODEL SUCCESSFULLY")
+
+    inference(model, cfg, 'train')
+    inference(model, cfg, 'val')
 
 
 
@@ -136,7 +149,7 @@ def setup_convcrf(cfg):
 
 def apply_convcrf(crf_model, images, preds):
     '''
-    Args:
+    args:
         images: torch tensor in shape of [batch, 3, H, W]
         preds: predicted masks in shape of [batch, 1, H, W]
     

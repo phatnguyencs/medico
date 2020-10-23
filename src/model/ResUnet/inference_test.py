@@ -1,39 +1,44 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from tqdm import tqdm
-import glob
-import dataset
-from model.ResUnet.utils import metrics
-from model.ResUnet.core.res_unet import ResUnet
-from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
 import torch
 import argparse
 import os
 import os.path as osp
 import cv2
 import numpy as np
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from tqdm import tqdm
+import glob
+
+from model.ResUnet.utils import metrics
+from model.ResUnet.core.res_unet import ResUnet
+from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
+
 from model.ResUnet.utils import (
     get_parser,get_default_config,BCEDiceLoss,
     MetricTracker,jaccard_index,dice_coeff,
     MyWriter,
 )
 from model.ResUnet.init_config import setup
-from model.ResUnet.utils.visualize import visualize_validation, visualize_prediction
+from model.ResUnet.utils.visualize import visualize_validation, visualize_prediction, thresholding_mask
 from model.ResUnet.dataset import ImageDataset
 
 def prepare_model(checkpoint_dir: str):
     model = ResUnetPlusPlus(3).cuda()
+    if 'best_model.pt' not in checkpoint_dir:
+        resume = osp.join(checkpoint_dir, 'best_model.pt')
+    else:
+        resume = checkpoint_dir
 
-    resume = osp.join(checkpoint_dir, 'best_model.pt')
     checkpoint = torch.load(resume)
     model.load_state_dict(checkpoint['state_dict'])
     print(f"LOADED MODEL SUCCESSFULLY")
 
     model.eval()
     return model
+
 
 def visualize_on_specific_folder(save_folder, img_folder, model, cfg):
     # Setup
@@ -54,6 +59,7 @@ def visualize_on_specific_folder(save_folder, img_folder, model, cfg):
             img_input = img_input.cuda().unsqueeze(0)
             
             output = model(img_input)
+            output = thresholding_mask(output, cfg.INFERENCE.MASK_THRES)
 
             img_name = img_path.split('/')[-1]
             raw_img = cv2.imread(img_path)
@@ -73,17 +79,16 @@ def main():
     model = prepare_model(checkpoint_dir)
 
     folders_to_test = ['test_easy', 'test_hard', 'test_images']
-    folders_to_save = [f"visualize_{s}_{cfg.INFERENCE.MASK_THRES}" for s in folders_to_test]
+    folders_to_save = [f"visualize_{s}_{cfg.INFERENCE.MASK_THRES:.01f}" for s in folders_to_test]
 
     for i in range(len(folders_to_save)):
         print(f"visualize folder {folders_to_test[i]}")
         visualize_on_specific_folder(
-            save_folder=folders_to_save[i],
-            img_folder=folders_to_test[i],
-            model=model,
-            cfg=cfg
+            save_folder=folders_to_save[i], img_folder=folders_to_test[i],
+            model=model,cfg=cfg
         )
 
 
 if __name__ == "__main__":
     main()
+

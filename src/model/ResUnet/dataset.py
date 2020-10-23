@@ -17,30 +17,30 @@ import albumentations as A
 class ImageDataset(Dataset):
     """Massachusetts Road and Building dataset"""
 
-    def __init__(self, cfg, img_path, mask_path, train=True):
+    def __init__(self, cfg, img_path, mask_path, train=True, csv_file=None):
         """
         Args:
             csv_file (string): Path to the csv file with image paths
             train_valid_test (string): 'train', 'valid', or 'test'
-            root_dir (string): 'mass_roads', 'mass_roads_crop', or 'mass_buildings'
-            transform (callable, optional): Optional transform to be applied on a sample.
         """
         self.is_train = train
         self.img_path = img_path
         self.mask_path = mask_path
         
         self.is_aug = cfg.TRAIN.AUGMENT
-        self._load_csv_data(cfg)
+        self.load_csv_data(cfg, csv_file)
         self.image_size = cfg.MODEL.IMAGE_SIZE
         self.size_crop = 448
         self._setup_transform(cfg)
 
-    def _load_csv_data(self, cfg):
-        if self.is_train:
-            df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN))
+    def load_csv_data(self, cfg, csv_file: str = None):
+        if csv_file is None:
+            if self.is_train:
+                df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN))
+            else:
+                df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.VAL))
         else:
-            df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.VAL))
-        
+            df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, csv_file))
         self.list_img = df['image'].tolist()
         self.mask_list = [osp.join(self.mask_path, f'{s}.jpg') for s in self.list_img]
         self.img_list = [osp.join(self.img_path, f'{s}.jpg') for s in self.list_img]

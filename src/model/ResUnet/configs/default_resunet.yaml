@@ -1,5 +1,5 @@
-OUTPUT_DIR: './result/resunet++/Oct18_2'
-CHECKPOINT_PATH: '' #'./result/resunet++/Oct12_1/checkpoints/'
+OUTPUT_DIR: './result/resunet++/Oct18_3'
+CHECKPOINT_PATH: './result/resunet++/Oct18_3/checkpoints/best_model.pt'
 
 MODEL:
   IMAGE_SIZE: (256, 256)
@@ -25,9 +25,8 @@ SOLVER:
   LR: 0.0001
 
 INFERENCE:
-  SAVE_DIR: './result/resunet++/Oct18_2'
+  SAVE_DIR: './result/resunet++/Oct18_3'
   CRF_STEP: 5
   CRF: False
   MASK_THRES: 0.7
-
 

@@ -129,8 +129,10 @@ class ValidationTracker(MetricTracker):
 
         return res
 
-    def to_json(self, json_file):
+    def to_json(self, json_file, is_print=True):
         res = self.get_avg()
+        if is_print:
+            print(res)
         with open(json_file, 'w') as f:
             json.dump(res, f, indent=4)
             

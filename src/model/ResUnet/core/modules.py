@@ -1,7 +1,6 @@
 import torch.nn as nn
 import torch
 
-
 class ResidualConv(nn.Module):
     def __init__(self, input_dim, output_dim, stride, padding):
         super(ResidualConv, self).__init__()
@@ -131,7 +130,6 @@ class Upsample_(nn.Module):
 
     def forward(self, x):
         return self.upsample(x)
-
 
 class AttentionBlock(nn.Module):
     def __init__(self, input_encoder, input_decoder, output_dim):

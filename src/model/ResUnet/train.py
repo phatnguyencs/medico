@@ -9,6 +9,7 @@ from model.ResUnet.utils import metrics
 from model.ResUnet.core.res_unet import ResUnet
 from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
 # from model.ResUnet.core.res_unet_plus_crf import ResUnetPlusPlus
+
 import torch
 import argparse
 import os
@@ -52,6 +53,12 @@ def do_train(cfg):
     writer = MyWriter("{}/{}".format(cfg.OUTPUT_DIR, 'log'))
     save_path = os.path.join(checkpoint_dir, "best_model.pt" )
 
+    # starting params
+    best_loss, best_score = 999, 0.0
+    start_epoch = 0
+    step = 0
+    not_improve_count = 0
+
     free_gpu_memory()
     # get model
     # crf_model = setup_convcrf(cfg)
@@ -66,13 +73,13 @@ def do_train(cfg):
     # decay LR
     # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", 
     #                 patience=cfg.TRAIN.SCHEDULER_PATIENCE, factor=cfg.TRAIN.SCHEDULER_FACTOR, verbose=True)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer,milestones=[50, 100, 250],gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer,milestones=[150, 250],gamma=0.1)
     
     # optionally resume from a checkpoint
     if resume != '':
         checkpoint = torch.load(resume)
-        # start_epoch = checkpoint["epoch"]
-        # best_loss = checkpoint["best_loss"]
+        start_epoch = checkpoint["epoch"]
+        best_score = checkpoint["best_score"]
         model.load_state_dict(checkpoint["state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         print("=> loaded checkpoint '{}', epoch {}, best_score: {}".format(resume, checkpoint["epoch"], checkpoint['best_score']))
@@ -103,11 +110,7 @@ def do_train(cfg):
     criterion = metrics.TSA_BCEDiceLoss(cfg, num_steps = cfg.SOLVER.EPOCH*int((len(train_dataset)-1)/cfg.SOLVER.BATCH_SIZE + 1))
     val_criterion = metrics.BCEDiceLoss()
 
-    # starting params
-    best_loss, best_score = 999, 0.0
-    start_epoch = 0
-    step = 0
-    not_improve_count = 0
+    
 #----------------------- START TRAINING --------------------------------
     for epoch in range(start_epoch, num_epochs):
         model.train()
@@ -126,12 +129,9 @@ def do_train(cfg):
 
             # zero the parameter gradients
             optimizer.zero_grad()
-
             # forward
             outputs = model(inputs) # [batch, 1, H, W]
-
             loss = criterion(outputs, labels)
-            
             # backward
             loss.backward()
             optimizer.step()
@@ -155,7 +155,7 @@ def do_train(cfg):
 
         valid_metrics = do_val(val_dataloader, model, val_criterion, writer, epoch)
         
-        lr_scheduler.step(valid_metrics['dice_coeff'])
+        lr_scheduler.step(epoch)
 
         # store best loss and save a model checkpoint
         if valid_metrics["dice_coeff"] > best_score:
@@ -164,15 +164,12 @@ def do_train(cfg):
             not_improve_count = 0
         else:
             not_improve_count += 1
-            if (cfg.SOLVER.EARLY_STOPPING != -1) and (not_improve_count % cfg.SOLVER.EARLY_STOPPING == 0):
+            if (cfg.SOLVER.EARLY_STOPPING != -1) and (not_improve_count >= cfg.SOLVER.EARLY_STOPPING):
                 break
         
         # save last model
         if epoch == num_epochs - 1:
-            save_checkpoint(model, num_epochs, optimizer, 
-            valid_metrics['valid_loss'], 
-                save_path.replace('best_model', 'final_model')
-            )
+            save_checkpoint(model, num_epochs, optimizer, best_score, save_path.replace('best_model', 'final_model'))
 
 def do_val(valid_loader, model, criterion, logger, step):
 
