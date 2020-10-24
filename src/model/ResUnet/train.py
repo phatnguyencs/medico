@@ -18,18 +18,14 @@ import numpy as np
 from PIL import Image
 from model.ResUnet.utils import augmentation as aug
 from model.ResUnet.utils import (
-    get_parser, get_default_config, BCEDiceLoss, MetricTracker, jaccard_index, dice_coeff, MyWriter,
+    get_parser, get_default_config, BCEDiceLoss, MetricTracker, jaccard_index, dice_coeff, MyWriter, free_gpu_memory
 )
+from model.ResUnet.network import Model
 
 seed = 88
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 np.random.seed(seed)
-
-def free_gpu_memory():
-    import gc
-    gc.collect()
-    torch.cuda.empty_cache()
 
 
 def save_checkpoint(model, epoch, optimizer, best_score, save_path, criterion=None):
@@ -39,10 +35,12 @@ def save_checkpoint(model, epoch, optimizer, best_score, save_path, criterion=No
         "best_score": best_score,
         "optimizer": optimizer.state_dict(),
     }
+    
     if criterion is not None:
         dict_to_save['tsa_thres_history'] = criterion.thres_history
     torch.save(dict_to_save,save_path)
     print("Saved checkpoint to: %s" % save_path)
+
 
 def do_train(cfg):
     resume = cfg.CHECKPOINT_PATH
@@ -58,17 +56,15 @@ def do_train(cfg):
     start_epoch = 0
     step = 0
     not_improve_count = 0
+    is_val=False
 
-    free_gpu_memory()
     # get model
-    # crf_model = setup_convcrf(cfg)
-    # model = ResUnetPlusPlus(3, crf_model).cuda()
-    model = ResUnetPlusPlus(3).cuda()
-    print(f"LOADED MODEL")
-
+    model = Model(cfg)
+    model.to_device()
+    
     # optimizer
     # optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.SOLVER.LR, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(model.get_weights(), lr=cfg.SOLVER.LR, weight_decay=1e-5)
 
     # decay LR
     # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", 
@@ -77,43 +73,45 @@ def do_train(cfg):
     
     # optionally resume from a checkpoint
     if resume != '':
-        checkpoint = torch.load(resume)
+        checkpoint = model.load_checkpoint(resume)
         start_epoch = checkpoint["epoch"]
         best_score = checkpoint["best_score"]
-        model.load_state_dict(checkpoint["state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         print("=> loaded checkpoint '{}', epoch {}, best_score: {}".format(resume, checkpoint["epoch"], checkpoint['best_score']))
+
+    print(f"LOADED MODEL")
 
     # get data
     train_dataset = ImageDataset(
         cfg, 
         img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
         mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
-        train=True
+        train=True,
+        csv_file=cfg.DATA.TRAIN
     )
     train_dataloader = DataLoader(
         train_dataset, batch_size=cfg.SOLVER.BATCH_SIZE, num_workers=4, shuffle=True
     )
 
     if cfg.DATA.VAL != '':
+        is_val=True
         val_dataset = ImageDataset(
             cfg, 
             img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
             mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
-            train=False
+            train=False,
+            csv_file=cfg.DATA.VAL
         )
         val_dataloader = DataLoader(val_dataset, batch_size=1, num_workers=4, shuffle=False)
 
 
     # set up binary cross entropy and dice loss
-    # criterion = metrics.BCEDiceLoss()
     criterion = metrics.TSA_BCEDiceLoss(cfg, num_steps = cfg.SOLVER.EPOCH*int((len(train_dataset)-1)/cfg.SOLVER.BATCH_SIZE + 1))
     val_criterion = metrics.BCEDiceLoss()
 
-    
-#----------------------- START TRAINING --------------------------------
+    #----------------------- START TRAINING --------------------------------
     for epoch in range(start_epoch, num_epochs):
-        model.train()
+        model.set_train()
         print("Epoch {}/{}".format(epoch, num_epochs - 1))
         print("-" * 20)
 
@@ -126,12 +124,12 @@ def do_train(cfg):
             # get the inputs and wrap in Variable
             inputs = data["sat_img"].cuda() # [batch, C, H, W]
             labels = data["map_img"].cuda() # [batch, H, W]
-
-            # zero the parameter gradients
             optimizer.zero_grad()
+            
             # forward
             outputs = model(inputs) # [batch, 1, H, W]
             loss = criterion(outputs, labels)
+            
             # backward
             loss.backward()
             optimizer.step()
@@ -148,19 +146,18 @@ def do_train(cfg):
         # tensorboard logging
         print(f"Training Loss: {train_loss.avg:.4f}, dice_coeff: {train_acc.avg:.4f}")
         writer.log_training(train_loss.avg, train_acc.avg, epoch)
-        
-        # Validatiuon        
-        if cfg.DATA.VAL == '':
-            continue
 
+        if not is_val:
+            continue
+        #----------------------- START VALIDATING --------------------------------
         valid_metrics = do_val(val_dataloader, model, val_criterion, writer, epoch)
-        
         lr_scheduler.step(epoch)
 
         # store best loss and save a model checkpoint
         if valid_metrics["dice_coeff"] > best_score:
             best_score = valid_metrics["dice_coeff"]
-            save_checkpoint(model, epoch, optimizer, best_score, save_path)
+            model.save_checkpoint(save_path, epoch, best_score, optimizer)
+            # save_checkpoint(model, epoch, optimizer, best_score, save_path)
             not_improve_count = 0
         else:
             not_improve_count += 1
@@ -178,7 +175,7 @@ def do_val(valid_loader, model, criterion, logger, step):
     valid_loss = metrics.MetricTracker()
 
     # switch to evaluate mode
-    model.eval()
+    model.set_eval()
 
     # Iterate over data.
     with torch.no_grad():

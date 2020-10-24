@@ -7,4 +7,4 @@ from .metrics import (
     dice_coeff,
 )
 from .logger import MyWriter
-
+from .memory import free_gpu_memory

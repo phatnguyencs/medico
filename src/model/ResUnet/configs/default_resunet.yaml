@@ -1,5 +1,5 @@
-OUTPUT_DIR: './result/resunet++/Oct18_3'
-CHECKPOINT_PATH: './result/resunet++/Oct18_3/checkpoints/best_model.pt'
+OUTPUT_DIR: './result/resunet++/Oct24_1'
+CHECKPOINT_PATH: '' #'./result/resunet++/Oct18_3/checkpoints/best_model.pt'
 
 MODEL:
   IMAGE_SIZE: (256, 256)
@@ -20,12 +20,12 @@ DATA:
   
 SOLVER:
   EPOCH: 300
-  BATCH_SIZE: 12
+  BATCH_SIZE: 2
   EARLY_STOPPING: -1
   LR: 0.0001
 
 INFERENCE:
-  SAVE_DIR: './result/resunet++/Oct18_3'
+  SAVE_DIR: './result/resunet++/Oct24_1'
   CRF_STEP: 5
   CRF: False
   MASK_THRES: 0.7

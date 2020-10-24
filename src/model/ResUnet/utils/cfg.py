@@ -40,6 +40,7 @@ def get_default_config():
     # ---------------------- MODEL CONFIG ------------------------
     cfg.MODEL.NAME = 'res_unet_plus'
     cfg.MODEL.IMAGE_SIZE = (512, 512)
+    cfg.MODEL.CHANNEL = 3
     
 
     # ---------------------- VISUALIZE RESULT --------------------
