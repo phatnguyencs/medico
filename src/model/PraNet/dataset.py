@@ -82,7 +82,7 @@ class ImageDataset(Dataset):
                 A.IAAEmboss(),
                 # A.RandomBrightnessContrast(),            
             ], p=0.3),
-            A.HueSaturationValue(hue_shift_limit=3,sat_shift_limit=20,val_shift_limit=3 ,p=0.2),
+            A.HueSaturationValue(hue_shift_limit=3,sat_shift_limit=20,val_shift_limit=3,p=0.2),
         ],p=0.5)
         # Torch transform
         self.resize_transform = transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST)

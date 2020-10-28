@@ -6,7 +6,6 @@ from torchvision import transforms
 from tqdm import tqdm
 from model.ResUnet.dataset import ImageDataset
 from model.ResUnet.utils import metrics
-from model.ResUnet.core.res_unet import ResUnet
 from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
 # from model.ResUnet.core.res_unet_plus_crf import ResUnetPlusPlus
 
