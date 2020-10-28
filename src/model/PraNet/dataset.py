@@ -35,15 +35,13 @@ class ImageDataset(Dataset):
 
     def load_csv_data(self, cfg, csv_file: str = None):
         if csv_file is None:
-            if self.is_train:
-                df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN))
-            else:
-                df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.VAL))
+            self.img_list = glob.glob(self.img_path+'/*')
+            self.mask_list = glob.glob(self.mask_path+'/*')
         else:
             df = pd.read_csv(osp.join(cfg.DATA.ROOT_DIR, csv_file))
-        self.list_img = df['image'].tolist()
-        self.mask_list = [osp.join(self.mask_path, f'{s}.jpg') for s in self.list_img]
-        self.img_list = [osp.join(self.img_path, f'{s}.jpg') for s in self.list_img]
+            self.list_img = df['image'].tolist()
+            self.mask_list = [osp.join(self.mask_path, f'{s}.jpg') for s in self.list_img]
+            self.img_list = [osp.join(self.img_path, f'{s}.jpg') for s in self.list_img]
 
         print(f"Created dataset with {len(self.img_list)} images")
 

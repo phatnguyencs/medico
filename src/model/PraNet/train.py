@@ -1,14 +1,14 @@
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
-
-import torch
 import argparse
 import os
 import os.path as osp
+
+import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
-
 from model.PraNet.utils import (
     StructureLoss, BCEDiceLoss, clip_gradient, adjust_lr, AvgMeter, get_default_config, 
     free_gpu_memory, get_parser, MyWriter
@@ -74,36 +74,42 @@ def epoch_train(model, dataloader, criterion, optimizer, trainsize):
     # iterate over the dataset
     loader = tqdm(dataloader, desc="training")
     for idx, data in enumerate(loader):
-        # get the inputs and wrap in Variable
-        inputs = data["sat_img"].cuda() # [batch, C, H, W]
-        labels = data["map_img"].cuda() # [batch, H, W]
-        raw_shape = {
-            'height': labels.shape[1],
-            'width': labels.shape[2],
-        }
-        
-        optimizer.zero_grad()
-        
-        # forward
-        outputs = model(inputs) # [batch, 1, H, W]
-        predictions = model.get_prediction_from_output(outputs, raw_shape)
-        
-        assert predictions.shape == labels.shape, "output shape must equals to input shape"
-        
-        # loss
-        loss, loss2, loss3, loss4, loss5 = criterion(outputs, labels) 
-        
-        # backward
-        loss.backward()
-        optimizer.step()
+        for ratio in cfg.TRAIN.SIZE_RATES:
+            # get the inputs and wrap in Variable
+            inputs = data["sat_img"].cuda() # [batch, C, H, W]
+            labels = data["map_img"].cuda() # [batch, H, W]
+            if ratio != 1.0: #rescale image
+                scale_size = int(round(cfg.MODEL.IMAGE_SIZE[0]*ratio/32)*32)
+                upsampler = nn.Upsample(size=(scale_size, scale_size), mode='bilinear', align_corners=False)
+                inputs = upsampler(inputs)
+                labels = upsampler(labels.unsqueeze(1)).squeeze(1)
+            
+            raw_shape = {
+                'height': labels.shape[1],
+                'width': labels.shape[2],
+            }
 
-        loss_record2.update(loss2, inputs.size(0))
-        loss_record3.update(loss3, inputs.size(0))
-        loss_record4.update(loss4, inputs.size(0))
-        loss_record5.update(loss5, inputs.size(0))
-        total_loss_record.update(loss, inputs.size(0))
+            optimizer.zero_grad()
+            
+            # forward
+            outputs = model(inputs) # [batch, 1, H, W]
+            predictions = model.get_prediction_from_output(outputs, raw_shape)
+            assert predictions.shape == labels.shape, "output shape must equals to input shape"
+            
+            # loss
+            loss, loss2, loss3, loss4, loss5 = criterion(outputs, labels) 
+            
+            # backward
+            loss.backward()
+            optimizer.step()
 
-        train_acc.update(metrics.dice_coeff(predictions, labels), inputs.size(0))
+            loss_record2.update(loss2, inputs.size(0))
+            loss_record3.update(loss3, inputs.size(0))
+            loss_record4.update(loss4, inputs.size(0))
+            loss_record5.update(loss5, inputs.size(0))
+            total_loss_record.update(loss, inputs.size(0))
+
+            train_acc.update(metrics.dice_coeff(predictions, labels), inputs.size(0))
 
     epoch_result['total_loss'] = total_loss_record.avg
     epoch_result['dice_coef'] = train_acc.avg
@@ -212,10 +218,6 @@ def do_train(cfg):
             not_improve_count += 1
             if (cfg.SOLVER.EARLY_STOPPING != -1) and (not_improve_count >= cfg.SOLVER.EARLY_STOPPING):
                 break
-        
-        # save last model
-        if epoch == num_epochs - 1:
-            model.save_checkpoint(cfg.CHECKPOINT_PATH, epoch, best_score, optimizer)
 
 def setup():
     args = get_parser()

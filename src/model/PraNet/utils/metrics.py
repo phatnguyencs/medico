@@ -5,8 +5,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-
-class StructureLoss(nn.Module):
+class TSA_StructureLoss(nn.Module):
     def __init__(self, n_branches=5):
         super(StructureLoss, self).__init__()
         self.n_branches = n_branches
@@ -22,6 +21,36 @@ class StructureLoss(nn.Module):
         union = ((pred + target)*weit).sum(dim=(2, 3))
         wiou = 1 - (inter + 1)/(union - inter+1)
         return (wbce + wiou).mean()
+
+    def forward(self, outputs, gt):
+        '''
+        Args:
+            outputs: (map_5, map_4, map_3, map_2)
+        '''
+        map_5, map_4, map_3, map_2 = outputs 
+        loss_5, loss_4, loss_3, loss_2 = self.lateral_forward(map_5, gt), self.lateral_forward(map_4, gt), self.lateral_forward(map_3, gt), self.lateral_forward(map_2, gt)
+        final_loss = loss_5 + loss_4 + loss_3 + loss_2
+        return final_loss, loss_2, loss_3, loss_4, loss_5
+    
+
+class StructureLoss(nn.Module):
+    def __init__(self, n_branches=5):
+        super(StructureLoss, self).__init__()
+        self.n_branches = n_branches
+
+    def lateral_forward(self, pred, gt):
+        target = gt.unsqueeze(1)
+        weit = 1 + self.n_branches*torch.abs(F.avg_pool2d(target, kernel_size=31, stride=1, padding=15) - target)
+        wbce = F.binary_cross_entropy_with_logits(pred, target, reduce='none')
+        wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
+
+        pred = torch.sigmoid(pred)
+        inter = ((pred * target)*weit).sum(dim=(2, 3))
+        union = ((pred + target)*weit).sum(dim=(2, 3))
+        dice_coef = (2.0*inter + 1) / (union + 1)
+        dice_loss = 1 - dice_coef
+        wiou = 1 - (inter + 1)/(union - inter+1)
+        return (wbce + dice_loss).mean()
 
     def forward(self, outputs, gt):
         '''
