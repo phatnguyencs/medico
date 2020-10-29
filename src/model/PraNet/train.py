@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from model.PraNet.utils import (
     StructureLoss, BCEDiceLoss, clip_gradient, adjust_lr, AvgMeter, get_default_config, 
-    free_gpu_memory, get_parser, MyWriter
+    free_gpu_memory, get_parser, MyWriter, TSA_StructureLoss
 )
 from model.PraNet.dataset import ImageDataset
 from model.PraNet.network import MedicoNet
@@ -60,7 +60,7 @@ def epoch_val(valid_loader, model, criterion, logger, step):
     print("Validation Loss: {:.4f} dice-coeff: {:.4f}".format(valid_loss.avg, valid_acc.avg))
     return {"valid_loss": valid_loss.avg, "dice_coeff": valid_acc.avg}
 
-def epoch_train(model, dataloader, criterion, optimizer, trainsize):
+def epoch_train(cfg, model, dataloader, criterion, optimizer, trainsize):
     '''
         Training logic for each epoch. 
         Remember to turn model on training mode before calling this function.
@@ -180,7 +180,7 @@ def do_train(cfg):
         val_dataloader = DataLoader(val_dataset, batch_size=1, num_workers=4, shuffle=False)
 
 
-    train_criterion = StructureLoss()
+    train_criterion = TSA_StructureLoss(cfg, num_steps=cfg.SOLVER.EPOCH*int((len(train_dataset)-1)/cfg.SOLVER.BATCH_SIZE + 1))
     val_criterion = BCEDiceLoss()
 
     #----------------------- START TRAINING --------------------------------

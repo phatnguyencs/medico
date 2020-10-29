@@ -6,21 +6,68 @@ from torch import nn
 import torch.nn.functional as F
 
 class TSA_StructureLoss(nn.Module):
-    def __init__(self, n_branches=5):
-        super(StructureLoss, self).__init__()
+    def __init__(self, cfg, num_steps, cuda=True):
+        super(TSA_StructureLoss, self).__init__()
         self.n_branches = n_branches
+        self.thres_history = []
+
+        # TSA loss parameters
+        self.num_steps = num_steps
+        self.alpha = cfg.TRAIN.TSA.ALPHA
+        self.current_step = 0
+        self.num_classes = 2
+        self.cuda = cuda
+
+    def step(self):
+        self.current_step += 1
+
+    def reset(self):
+        self.current_step = 0
+
+    def threshold(self, batch_size):
+        # alpha_3: a = exp(5*(t/T-1)) 
+        alpha_3 = torch.exp(torch.Tensor(batch_size*[self.alpha*(self.current_step/self.num_steps - 1)]))
+        
+        # alpha_1: a = 1 - exp(5* -t/T)
+        alpha_1 = 1 - torch.exp(torch.Tensor(batch_size*[-self.alpha*self.current_step/self.num_steps]))         
+        thres = alpha_1*(1-1/self.num_classes) + 1/self.num_classes
+        
+        self.thres_history.append(thres[0].item())
+        if (self.cuda):
+            thres = thres.cuda()
+
+        return thres
 
     def lateral_forward(self, pred, gt):
+        batch_size = gt.shape[0]
+        thres = self.threshold(batch_size)
+
         target = gt.unsqueeze(1)
-        weit = 1 + self.n_branches*torch.abs(F.avg_pool2d(target, kernel_size=31, stride=1, padding=15) - target)
+
+        weit = 1 + 5*torch.abs(F.avg_pool2d(target, kernel_size=31, stride=1, padding=15) - target)
         wbce = F.binary_cross_entropy_with_logits(pred, target, reduce='none')
         wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
 
         pred = torch.sigmoid(pred)
-        inter = ((pred * target)*weit).sum(dim=(2, 3))
-        union = ((pred + target)*weit).sum(dim=(2, 3))
-        wiou = 1 - (inter + 1)/(union - inter+1)
-        return (wbce + wiou).mean()
+        # inter = ((pred * target)).sum(dim=(2, 3))
+        # union = ((pred + target)).sum(dim=(2, 3))
+
+        weighted_inter = ((pred * target)*weit).sum(dim=(2, 3))
+        weighted_union = ((pred + target)*weit).sum(dim=(2, 3))
+        
+        dice_coef = (2.0*weighted_inter + 1)/(weighted_union + 1)
+
+        mask = (dice_coef < thres).detach().double()
+        n_under_thres = torch.sum(mask).item()
+        n_over_thres = batch_size - n_under_thres
+        mask[mask == 0] = max(n_over_thres, n_under_thres)/batch_size
+        mask[mask == 1] += min(n_over_thres, n_under_thres)/batch_size
+        
+        dice_loss = 1 - dice_coef
+        wiou = 1 - (weighted_inter + 1)/(weighted_union - weighted_inter+1)
+
+        self.step()
+        return ((wbce + dice_loss)*mask).mean()
 
     def forward(self, outputs, gt):
         '''
@@ -32,7 +79,6 @@ class TSA_StructureLoss(nn.Module):
         final_loss = loss_5 + loss_4 + loss_3 + loss_2
         return final_loss, loss_2, loss_3, loss_4, loss_5
     
-
 class StructureLoss(nn.Module):
     def __init__(self, n_branches=5):
         super(StructureLoss, self).__init__()
@@ -62,7 +108,6 @@ class StructureLoss(nn.Module):
         final_loss = loss_5 + loss_4 + loss_3 + loss_2
         return final_loss, loss_2, loss_3, loss_4, loss_5
         
-
 class TSA_BCEDiceLoss(nn.Module):
     def __init__(self, cfg, num_steps, cuda=True):
         self.alpha = cfg.TRAIN.TSA.ALPHA
@@ -82,8 +127,7 @@ class TSA_BCEDiceLoss(nn.Module):
         alpha_3 = torch.exp(torch.Tensor(batch_size*[self.alpha*(self.current_step/self.num_steps - 1)]))
 
         # alpha_1: a = 1 - exp(5* -t/T)
-        alpha_1 = 1 - torch.exp(torch.Tensor(batch_size*[-self.alpha*self.current_step/self.num_steps])) 
-        
+        alpha_1 = 1 - torch.exp(torch.Tensor(batch_size*[-self.alpha*self.current_step/self.num_steps]))         
         thres = alpha_1*(1-1/self.num_classes) + 1/self.num_classes
 
         self.thres_history.append(thres[0].item())
@@ -118,7 +162,6 @@ class TSA_BCEDiceLoss(nn.Module):
         self.step()
         
         return loss
-
 
 class BCEDiceLoss(nn.Module):
     def __init__(self, weight=None, size_average=True):
@@ -210,7 +253,6 @@ def jaccard_index(output, target):
     else:
         return float(intersection) / float(max(union, 1))
 
-
 # https://github.com/pytorch/pytorch/issues/1249
 def dice_coeff(output, target):
     num_in_target = output.size(0)
@@ -228,7 +270,6 @@ def dice_coeff(output, target):
 
 def calculate_f_score(precision, recall, base=2):
     return (1 + base**2)*(precision*recall)/((base**2 * precision) + recall)
-
 
 def calculate_all_metrics_numpy(preds, gt, cpu=True):
     '''

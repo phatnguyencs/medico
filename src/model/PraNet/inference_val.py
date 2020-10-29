@@ -9,17 +9,14 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
-import model.ResUnet.dataset as dataset
-from model.ResUnet.utils import metrics
-from model.ResUnet.core.res_unet import ResUnet
-from model.ResUnet.core.res_unet_plus import ResUnetPlusPlus
-
-from model.ResUnet.utils import (
-    get_parser,get_default_config,BCEDiceLoss,MetricTracker,jaccard_index,dice_coeff,MyWriter,
+from model.PraNet.utils import (
+    StructureLoss, BCEDiceLoss, clip_gradient, adjust_lr, AvgMeter, get_default_config, 
+    free_gpu_memory, get_parser, MyWriter, TSA_StructureLoss
 )
-from model.ResUnet.init_config import setup
-from model.ResUnet.utils.visualize import visualize_validation, thresholding_mask
-from model.ResUnet.utils import augmentation as aug
+from model.PraNet.dataset import ImageDataset
+from model.PraNet.network import MedicoNet
+from model.PraNet.utils import metrics
+from model.PraNet.utils.visualize import visualize_validation, visualize_prediction, thresholding_mask 
 
 # import conv_crf
 # from model.ResUnet.convcrf import convcrf
@@ -50,7 +47,7 @@ def inference(model, cfg, dataset_type = 'val'):
         csv2load = cfg.DATA.TRAIN
 
 
-    dataset_val = dataset.ImageDataset(
+    dataset_val = ImageDataset(
         cfg, 
         img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
         mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
@@ -78,15 +75,19 @@ def inference(model, cfg, dataset_type = 'val'):
     with torch.no_grad():
         for idx, data in tqdm(enumerate(val_dataloader)):
             inputs = data['sat_img'].cuda()
-            labels = data['map_img'].cuda()
+            labels = data['map_img'].cuda() # [B, H, W]
 
-            # print(data['raw_shape'])
-            img_paths, raw_shape = data['image_path'], data['raw_shape']
+            img_paths = data['image_path']
+            raw_shape = {
+                'height': labels.shape[1],
+                'width': labels.shape[2],
+            }
 
-            outputs = model(inputs)
-            outputs = thresholding_mask(outputs, cfg.INFERENCE.MASK_THRES)
-            imgs = inputs.cpu().permute(0, 2, 3, 1).numpy()
-            gts = labels.cpu().numpy()
+            outputs = model.predict_mask(inputs, raw_shape)
+            outputs = thresholding_mask(outputs, cfg.INFERENCE.MASK_THRES) # [B, H, W]
+
+            imgs = inputs.cpu().permute(0, 2, 3, 1).numpy() # [B, C, H, W] --> [B, H, W, C]
+            gts = labels.cpu().numpy()# [B, H, W]
             
             if crf_model is not None:
                 crf_preds = refine_result(inputs, outputs, crf_model, cfg)
@@ -97,13 +98,14 @@ def inference(model, cfg, dataset_type = 'val'):
                 save_paths = [osp.join(visualization_save_dir, p) for p in img_names]
                 visualize_validation(img_paths, gts, crf_preds, save_paths, crf_all_scores, cfg, raw_shape)
 
+            pred_masks = outputs.cpu().numpy()
             all_scores = metrics.calculate_all_metrics(outputs, labels)
             img_names = [p.strip().split('/')[-1] for p in img_paths]
             save_paths = [osp.join(visualization_save_dir, p) for p in img_names]
-            preds = outputs.cpu().permute(0, 2, 3, 1).numpy()
+            
             
             val_tracker.update(all_scores)
-            visualize_validation(img_paths, gts, preds, visualization_save_dir, all_scores, cfg, raw_shape)
+            visualize_validation(img_paths, gts, pred_masks, visualization_save_dir, all_scores, cfg, raw_shape)
         
         val_tracker.to_json(osp.join(cfg.INFERENCE.SAVE_DIR, f'{dataset_type}_scores_{cfg.INFERENCE.MASK_THRES:.01f}.json'))
 
@@ -111,18 +113,37 @@ def inference(model, cfg, dataset_type = 'val'):
             crf_val_tracker.to_json(osp.join(cfg.INFERENCE.SAVE_DIR, f'{dataset_type}_crf_scores_{cfg.INFERENCE.MASK_THRES:.01f}.json'))
 
 
+def setup():
+    args = get_parser()
+    cfg = get_default_config()
+    cfg.merge_from_file(args.config)
+
+    os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+    return args, cfg
+
+def prepare_model(cfg, checkpoint_dir: str):
+    model = MedicoNet(cfg)
+    if 'best_model.pt' not in checkpoint_dir:
+        resume = osp.join(checkpoint_dir, 'best_model.pt')
+    else:
+        resume = checkpoint_dir
+
+    model.load_checkpoint(resume)
+    model.to_device()
+    print(f"LOADED MODEL SUCCESSFULLY")
+
+    model.eval()
+    return model
+
 if __name__ == "__main__":
     args, cfg = setup()
 
     # Load checkpoint
-    model = ResUnetPlusPlus(3).cuda()
-    checkpoint_dir = f"{cfg.OUTPUT_DIR}/checkpoints"
-    resume = osp.join(checkpoint_dir, 'best_model.pt')
-    checkpoint = torch.load(resume)
-    model.load_state_dict(checkpoint['state_dict'])
-    print(f"LOADED MODEL SUCCESSFULLY")
+    model = prepare_model(cfg, cfg.CHECKPOINT_PATH)
 
+    print("inference train set")
     inference(model, cfg, 'train')
+    print("inference val set")
     inference(model, cfg, 'val')
 
 

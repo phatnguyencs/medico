@@ -1,5 +1,5 @@
 OUTPUT_DIR: './result/PraNet/Oct28_2'
-CHECKPOINT_PATH: '' #'./result/PraNet/Oct28_1/checkpoints/best_model.pt' 
+CHECKPOINT_PATH: './result/PraNet/Oct28_2/checkpoints/best_model.pt' 
 
 MODEL:
   IMAGE_SIZE: (352, 352)
@@ -29,6 +29,6 @@ INFERENCE:
   SAVE_DIR: './result/PraNet/Oct28_2'
   CRF_STEP: 5
   CRF: False
-  MASK_THRES: 0.7
+  MASK_THRES: 0.5
 
 

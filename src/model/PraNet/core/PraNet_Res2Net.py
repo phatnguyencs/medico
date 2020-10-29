@@ -97,7 +97,7 @@ class aggregation(nn.Module):
 
 class PraNet(nn.Module):
     # res2net based encoder decoder
-    def __init__(self, channel=32, pretrained_backbone=True):
+    def __init__(self, channel=32, pretrained_backbone=False):
         super(PraNet, self).__init__()
         # ---- ResNet Backbone ----
         self.resnet = res2net50_v1b_26w_4s(pretrained=pretrained_backbone)

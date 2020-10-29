@@ -51,13 +51,13 @@ class ImageDataset(Dataset):
         self.img_mask_transform = A.Compose([
             A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=175, p=0.8, border_mode=cv2.BORDER_CONSTANT),
             A.Flip(),
-            A.Transpose(),
-            A.OneOf([
-                A.ElasticTransform(),
-                A.OpticalDistortion(),
-                A.GridDistortion(),
-                A.IAAPiecewiseAffine(),
-            ]),
+            # A.Transpose(),
+            # A.OneOf([
+            #     A.ElasticTransform(),
+            #     A.OpticalDistortion(),
+            #     A.GridDistortion(),
+            #     A.IAAPiecewiseAffine(),
+            # ]),
             A.OneOf([
                     A.RandomCrop(height=self.size_crop,width=self.size_crop,p=0.5),  
                     A.CenterCrop(height=self.size_crop,width=self.size_crop,p=0.5)

@@ -90,7 +90,6 @@ class Bottle2neck(nn.Module):
 
         return out
 
-
 class Res2Net(nn.Module):
 
     def __init__(self, block, layers, baseWidth=26, scale=4, num_classes=1000):
@@ -161,7 +160,6 @@ class Res2Net(nn.Module):
 
         return x
 
-
 def res2net50_v1b(pretrained=False, **kwargs):
     """Constructs a Res2Net-50_v1b lib.
     Res2Net-50 refers to the Res2Net-50_v1b_26w_4s.
@@ -172,7 +170,6 @@ def res2net50_v1b(pretrained=False, **kwargs):
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['res2net50_v1b_26w_4s']))
     return model
-
 
 def res2net101_v1b(pretrained=False, **kwargs):
     """Constructs a Res2Net-50_v1b_26w_4s lib.
