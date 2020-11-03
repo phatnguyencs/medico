@@ -12,7 +12,6 @@ def save_config(save_dir: str, cfg: CN):
 
 def get_default_config():
     cfg = CN()
-    
 
     # define your config content here
     cfg.DATA = CN()
@@ -51,14 +50,16 @@ def get_default_config():
     cfg.MODEL.NAME = 'res_unet_plus'
     cfg.MODEL.IMAGE_SIZE = (512, 512)
     cfg.MODEL.CHANNEL = 3
+    cfg.MODEL.BACKBONE = 'resnet50' # or 'resnet101'
     
 
     # ---------------------- VISUALIZE RESULT --------------------
     cfg.INFERENCE.SAVE_DIR = ''
     cfg.INFERENCE.MASK_THRES = 0.5
-    cfg.INFERENCE.BATCH_SIZE = 10
+    cfg.INFERENCE.BATCH_SIZE = 1
     cfg.INFERENCE.CRF =  False
     cfg.INFERENCE.CRF_STEP = 10
+    cfg.INFERENCE.TTA = False
 
     # ---------------------- SOLVER CONFIG ------------------------
     cfg.SOLVER.EPOCH = 100

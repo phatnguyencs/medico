@@ -11,7 +11,6 @@ def free_gpu_memory():
     gc.collect()
     torch.cuda.empty_cache()
 
-
 def clip_gradient(optimizer, grad_clip):
     """
     For calibrating misalignment gradient via cliping gradient technique

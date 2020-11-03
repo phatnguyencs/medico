@@ -1,8 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .Res2Net_v1b import res2net50_v1b_26w_4s
+from .Res2Net_v1b import res2net50_v1b_26w_4s, res2net101_v1b_26w_4s
 
+backbone_map = {
+    'resnet50': res2net50_v1b_26w_4s,
+    'resnet101': res2net101_v1b_26w_4s,
+}
 
 class BasicConv2d(nn.Module):
     def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, dilation=1):
@@ -97,10 +101,11 @@ class aggregation(nn.Module):
 
 class PraNet(nn.Module):
     # res2net based encoder decoder
-    def __init__(self, channel=32, pretrained_backbone=False):
+    def __init__(self, channel=32, backbone="resnet50", pretrained_backbone=False):
         super(PraNet, self).__init__()
         # ---- ResNet Backbone ----
-        self.resnet = res2net50_v1b_26w_4s(pretrained=pretrained_backbone)
+        self.resnet = backbone_map[backbone](pretrained=pretrained_backbone)
+        
         # ---- Receptive Field Block like module ----
         self.rfb2_1 = RFB_modified(512, channel)
         self.rfb3_1 = RFB_modified(1024, channel)

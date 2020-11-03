@@ -6,11 +6,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from model.PraNet.core.PraNet_Res2Net import PraNet
+from model.PraNet.utils.transform import rotate90
 
 class MedicoNet(nn.Module):
     def __init__(self, cfg):
         super(MedicoNet, self).__init__()
-        self.backbone = PraNet(pretrained_backbone=False)
+        self.backbone = PraNet(backbone=cfg.MODEL.BACKBONE, pretrained_backbone=False)
 
     def set_eval(self):
         self.backbone.eval()
@@ -69,10 +70,53 @@ class MedicoNet(nn.Module):
         Args:
             image: Tensor of batch size 1
             raw_shape: dictionary of {'height': H, 'width': W}
+        Return:
+            mask: tensor with shape: raw_shape([H, W])
         '''
         self.set_eval()
         with torch.no_grad():
             output = self.backbone(image)
             return self.get_prediction_from_output(output, raw_shape)
 
+    # TODO: inference TTA on a single image
+    def predict_mask_tta(self, image, raw_shape):
+        '''
+        Args:
+            image: input tensor, shape: [1, C, H, W]
+        '''
+        all_preds = []
 
+        ## TTA with vertical and horizontal flip
+        h_image = torch.flip(image, dims=(2,))
+        v_image = torch.flip(image, dims=(3,))
+        
+        h_pred = self.predict_mask(h_image, raw_shape)
+        v_pred = self.predict_mask(v_image, raw_shape)
+        pred = self.predict_mask(image, raw_shape)
+        
+        # output shape is raw_shape([H, W] ) 
+        h_pred = torch.flip(h_pred, dims=(0,))
+        v_pred = torch.flip(v_pred, dims=(1,))
+        all_preds.append(h_pred)
+        all_preds.append(v_pred)
+
+        ## TTA with 90, 180, 270 flip
+        rots = [rotate90(90), rotate90(180), rotate90(270)]
+        derots = [rotate90(-90), rotate90(-180), rotate90(-270)]
+        shapes = [
+            {'width': raw_shape['height'], 'height': raw_shape['width']},
+            raw_shape, 
+            {'width': raw_shape['height'], 'height': raw_shape['width']},
+        ]
+        
+        for i in range(len(rots)):
+            rot_img = rots[i](image)
+            rot_pred = self.predict_mask(rot_img, shapes[i])
+            derot_pred = derots[i](rot_pred, dims=[0,1])
+            all_preds.append(derot_pred)
+            
+        final_pred = torch.zeros_like(all_preds[0])
+        for pred in all_preds[1:]:
+            final_pred += pred
+        
+        return final_pred/len(all_preds)

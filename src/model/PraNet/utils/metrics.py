@@ -1,6 +1,6 @@
 import numpy as np
 import json
-
+import cv2
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -284,13 +284,13 @@ def calculate_all_metrics_numpy(preds, gt, cpu=True):
             'F2': np.array[F2 scores]
         }
     '''
-    batch_size = preds.size(0)
+    batch_size = preds.shape[0]
     y_preds = preds.reshape(batch_size, -1)
     y_true = gt.reshape(batch_size, -1)
     smooth = 1.0
     eps = 1e-5
-    intersection = torch.sum(y_preds*y_true, dim=1)
-    union = torch.sum(y_preds, 1) + torch.sum(y_true,1) - intersection
+    intersection = np.sum(y_preds*y_true, axis=1)
+    union = np.sum(y_preds, 1) + np.sum(y_true,1) - intersection
 
     iou = intersection/(union + eps)
     dice_coeff = (2.0*intersection + smooth)/(y_preds.sum(1) + y_true.sum(1) + smooth)
@@ -307,6 +307,21 @@ def calculate_all_metrics_numpy(preds, gt, cpu=True):
     }
 
     return all_scores
+
+def calculate_all_metrics_raw_size(preds, gt, raw_shape):
+    '''
+    Args:
+        preds, gt: torch tensor of type [H, W]
+        raw_shape: {'height': H, 'width': W}
+    '''
+    shape_to_resize = (raw_shape['height'], raw_shape['width'])
+    np_preds = preds.squeeze().detach().cpu().numpy()
+    np_gt = gt.squeeze().detach().cpu().numpy()
+
+    np_preds = cv2.resize(np_preds, dsize=(raw_shape['width'], raw_shape['height']))
+    np_gt = cv2.resize(np_gt, dsize=(raw_shape['width'], raw_shape['height']))
+
+    return calculate_all_metrics_numpy(np.expand_dims(np_preds, axis=0), np.expand_dims(np_gt, axis=0))
 
 def calculate_all_metrics(preds, gt, cpu=True):
     '''

@@ -20,6 +20,20 @@ from model.PraNet.network import MedicoNet
 from model.PraNet.utils import metrics
 from model.PraNet.utils.visualize import visualize_validation, visualize_prediction, thresholding_mask 
 
+from model.postprocess.apply_crf import get_dcrf_model, apply_dcrf_model
+
+def refine_result(images, masks, crf_model, cfg):
+    # Convert to numpy:
+    np_masks = masks.cpu().numpy().transpose(0, 2, 3, 1) # [batch, 1, H, W] --> [batch, H, W, 1]
+    np_imgs = images.cpu().numpy().transpose(0, 2, 3, 1) # [batch, 1, H, W] --> [batch, H, W, 1]
+    batch_size = np_masks.shape[0]
+    
+    for i in range(batch_size):
+        refined_mask = apply_dcrf_model(np_imgs[i], np_masks[i], crf_model, n_steps=cfg.INFERENCE.CRF_STEP) 
+        np_masks[i] = np.expand_dims(refined_mask, axis=2) # [H, W] --> [H, W, 1]
+    
+    return torch.Tensor(np_masks.transpose(0, 3, 1, 2)) # covnert back to [batch, 1, H, W]
+
 
 def setup():
     args = get_parser()
@@ -31,15 +45,11 @@ def setup():
 
 def prepare_model(cfg, checkpoint_dir: str):
     model = MedicoNet(cfg)
-    if 'best_model.pt' not in checkpoint_dir:
-        resume = osp.join(checkpoint_dir, 'best_model.pt')
-    else:
-        resume = checkpoint_dir
-
+    resume = checkpoint_dir
     model.load_checkpoint(resume)
-    model.to_device()
     print(f"LOADED MODEL SUCCESSFULLY")
 
+    model.to_device()
     model.eval()
     return model
 
@@ -54,6 +64,12 @@ def visualize_on_specific_folder(save_folder, img_folder, model, cfg):
     
     vis_savedir = osp.join(cfg.INFERENCE.SAVE_DIR, save_folder)
     os.makedirs(vis_savedir, exist_ok=True)
+
+    crf_model, crf_val_tracker = None, None
+    if cfg.INFERENCE.CRF:
+        crf_model = get_dcrf_model(cfg.MODEL.IMAGE_SIZE)
+        crf_val_tracker = metrics.ValidationTracker()
+
     with torch.no_grad():
         for img_path in tqdm(list_imgs):
             if img_path[0] == '.':
@@ -62,7 +78,11 @@ def visualize_on_specific_folder(save_folder, img_folder, model, cfg):
             img_input, raw_shape = ImageDataset.prepare_image(img_path, cfg)
             img_input = img_input.cuda().unsqueeze(0)
             
-            output = model.predict_mask(img_input, raw_shape)
+            if cfg.INFERENCE.TTA:
+                output = model.predict_mask_tta(img_input, raw_shape)
+            else:
+                output = model.predict_mask(img_input, raw_shape)
+            
             # print(f"output shape: {output.shape}")
             output = thresholding_mask(output, cfg.INFERENCE.MASK_THRES)
             
@@ -90,6 +110,9 @@ def main():
 
     folders_to_test = ['test_easy', 'test_hard', 'test_images']
     folders_to_save = [f"visualize_{s}_{cfg.INFERENCE.MASK_THRES:.01f}" for s in folders_to_test]
+
+    if cfg.INFERENCE.TTA:
+        folders_to_save = [name + '_tta' for name in folders_to_save]
 
     for i in range(len(folders_to_save)):
         print(f"visualize folder {folders_to_test[i]}")

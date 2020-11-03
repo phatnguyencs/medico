@@ -11,6 +11,7 @@ from torchvision import transforms
 # warnings.simplefilter("ignore", (UserWarning, FutureWarning))
 
 def thresholding_mask(preds, thres=0.5):
+    # thres = thres*preds.max()
     preds[preds>=thres] = 1.0
     preds[preds<thres] = 0.0
     return preds
@@ -76,7 +77,7 @@ def choose_img_folder_by_score(score):
 def visualize_validation(image_paths, gts, masks, save_dir, scores, cfg, raw_shape, is_split=True):
     '''
     Args:
-        images, masks, gts: np.array in the shape of [batch, H, W, C]
+        images, masks, gts: np.array in the shape of [H, W, C]
         scores: 
         save_dir: dir to save images. If is_split is True: 
             --> visualized images will be splitted in 3 different folders: (0.7,inf], (0.5,0.7], (-inf,0.5]
@@ -101,11 +102,11 @@ def visualize_validation(image_paths, gts, masks, save_dir, scores, cfg, raw_sha
         axes[0, 0].set_title('input')
         axes[0, 0].axis('off')
 
-        axes[0, 1].imshow(draw_mask(image, gts[i], thres=cfg.INFERENCE.MASK_THRES, raw_shape={'height': h, 'width': w}))
+        axes[0, 1].imshow(draw_mask(image, gts[i], thres=cfg.INFERENCE.MASK_THRES, raw_shape=raw_shape))
         axes[0, 1].set_title('groundtruth')
         axes[0, 1].axis('off')
 
-        axes[0, 2].imshow(draw_mask(image, masks[i], thres=cfg.INFERENCE.MASK_THRES, raw_shape={'height': h, 'width': w}))
+        axes[0, 2].imshow(draw_mask(image, masks[i], thres=cfg.INFERENCE.MASK_THRES, raw_shape=raw_shape))
         axes[0, 2].set_title('predicted')
         axes[0, 2].axis('off')
 
