@@ -49,7 +49,7 @@ class ImageDataset(Dataset):
     def _setup_transform(self, cfg):
         # Albumentation example: https://albumentations.readthedocs.io/en/latest/examples.html
         self.img_mask_transform = A.Compose([
-            A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=175, p=0.8, border_mode=cv2.BORDER_CONSTANT),
+            A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=175, p=0.9, border_mode=cv2.BORDER_CONSTANT),
             A.Flip(),
             # A.Transpose(),
             # A.OneOf([
@@ -58,12 +58,12 @@ class ImageDataset(Dataset):
             #     A.GridDistortion(),
             #     A.IAAPiecewiseAffine(),
             # ]),
-            A.OneOf([
-                    A.RandomCrop(height=self.size_crop,width=self.size_crop,p=0.5),  
-                    A.CenterCrop(height=self.size_crop,width=self.size_crop,p=0.5)
-            ]),            
-            A.Cutout(num_holes=8, max_h_size=8, max_w_size=8, fill_value=0,p=0.5),
-            ],p=0.8)
+            # A.OneOf([
+            #         A.RandomCrop(height=self.size_crop,width=self.size_crop,p=0.5),  
+            #         A.CenterCrop(height=self.size_crop,width=self.size_crop,p=0.5)
+            # ]),            
+            # A.Cutout(num_holes=8, max_h_size=8, max_w_size=8, fill_value=0,p=0.5),
+            ],p=0.9)
 
         self.img_pixel_transform = A.Compose([
             A.OneOf([
@@ -88,12 +88,14 @@ class ImageDataset(Dataset):
         self.normalize_transform = transforms.Normalize(mean=cfg.TRAIN.NORMALIZE_MEAN, std=cfg.TRAIN.NORMALIZE_STD)
 
     def __len__(self):
-        return len(self.mask_list)
+        return len(self.img_list)
 
     def __getitem__(self, idx):
-        maskpath = self.mask_list[idx]
+        # maskpath = self.mask_list[idx]
         imagepath = self.img_list[idx]
-        
+        image_name = imagepath.split('/')[-1]
+        maskpath = osp.join(self.mask_path, image_name)
+
         image = Image.open(imagepath).convert("RGB") #[W, H, C]
         mask = Image.open(maskpath)# .convert('L')
         original_width, original_height = image.size
@@ -131,11 +133,19 @@ class ImageDataset(Dataset):
         return sample
 
     @staticmethod
-    def prepare_image(img_path, cfg):
+    def prepare_image(img_path, cfg, high_boost=False):
         '''
-            Prepare an iamge ready to feed into ResUnet++ model
+            Prepare an image ready to feed into PraNet model
         '''
-        image = Image.open(img_path).convert("RGB")
+        if high_boost:
+            image = cv2.imread(img_path)
+            blur_img = cv2.GaussianBlur(image, (7,7), 0)
+            hb_img = cv2.addWeighted(image, 4, blur_img, -3, 0)
+            image = Image.fromarray(hb_img).convert("RGB")
+        
+        else:
+            image = Image.open(img_path).convert("RGB")
+        
         raw_shape = {'height': image.size[1], 'width': image.size[0]}
         image = transforms.Resize(cfg.MODEL.IMAGE_SIZE, Image.NEAREST)(image)
         image = transforms.ToTensor()(image)

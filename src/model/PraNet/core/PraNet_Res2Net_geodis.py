@@ -137,14 +137,12 @@ class PraNet(nn.Module):
         x = self.resnet.bn1(x)
         x = self.resnet.relu(x)
         x = self.resnet.maxpool(x)      # bs, 64, 88, 88
-        
         # ---- low-level features ----
         x1 = self.resnet.layer1(x)      # bs, 256, 88, 88
-        
         x2 = self.resnet.layer2(x1)     # bs, 512, 44, 44
+
         x3 = self.resnet.layer3(x2)     # bs, 1024, 22, 22
         x4 = self.resnet.layer4(x3)     # bs, 2048, 11, 11
-        
         x2_rfb = self.rfb2_1(x2)        # channel -> 32
         x3_rfb = self.rfb3_1(x3)        # channel -> 32
         x4_rfb = self.rfb4_1(x4)        # channel -> 32

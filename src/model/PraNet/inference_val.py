@@ -43,6 +43,26 @@ def refine_result(images, masks, crf_model, cfg):
     
     return torch.Tensor(np_masks.transpose(0, 3, 1, 2)) # covnert back to [batch, 1, H, W]
 
+def crf_refine_result_numpy(images, masks, crf_model, cfg):
+    """
+    Args:
+        images ([numpy array]): shape = [B, C, H, W]
+        masks ([numpy array]): shape = [B, 1, H, W]
+        crf_model ([type]): [description]
+        cfg ([type]): [description]
+    Return:
+        refined masks: [B, H, W, 1]
+    """
+    np_masks = masks.transpose(0, 2, 3, 1)
+    np_images = images.transpose(0, 2, 3, 1)
+    batch_size = np_masks.shape[0]
+    for i in range(batch_size):
+        refined_mask = apply_dcrf_model(np_images[i], np_masks[i], crf_model, n_steps=cfg.INFERENCE.CRF_STEP) 
+        np_masks[i] = np.expand_dims(refined_mask, axis=2) # [H, W] --> [H, W, 1]
+
+    return np_masks
+    
+
 def inference(model, cfg, dataset_type = 'val'):
     '''
     Args:
@@ -75,11 +95,11 @@ def inference(model, cfg, dataset_type = 'val'):
     if cfg.INFERENCE.CRF:
         crf_model = get_dcrf_model(cfg.MODEL.IMAGE_SIZE)
         crf_val_tracker = metrics.ValidationTracker()
-        res_json_path.replace('.json', '_crf.json')
+        res_json_path = res_json_path.replace('.json', '_crf.json')
 
     if cfg.INFERENCE.TTA:
         visualization_save_dir += '_tta'
-        res_json_path.replace('.json', '_tta.json')
+        res_json_path = res_json_path.replace('.json', '_tta.json')
 
     os.makedirs(visualization_save_dir, exist_ok=True)
 
@@ -126,6 +146,7 @@ def inference(model, cfg, dataset_type = 'val'):
             visualize_validation(img_paths, gts, np.expand_dims(pred_masks, axis=0), visualization_save_dir, all_scores, cfg, raw_shape)
         
         val_tracker.to_json(res_json_path)
+        print(f"Print score to {res_json_path}")
 
         if crf_val_tracker:
             crf_val_tracker.to_json(osp.join(cfg.INFERENCE.SAVE_DIR, f'{dataset_type}_crf_scores_{cfg.INFERENCE.MASK_THRES:.01f}.json'))

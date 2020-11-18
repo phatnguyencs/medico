@@ -1,8 +1,8 @@
-OUTPUT_DIR: './result/PraNet/28Oct_5'
-CHECKPOINT_PATH: './result/PraNet/28Oct_5/checkpoints/best_model.pt' 
+OUTPUT_DIR: './result/PraNet/full_train/result'
+CHECKPOINT_PATH: './result/PraNet/full_train/last_model.pt' 
 
 MODEL:
-  BACKBONE: "resnet101"
+  BACKBONE: "resnet50"
   IMAGE_SIZE: (352, 352)
 
 TRAIN:
@@ -11,26 +11,29 @@ TRAIN:
   SCHEDULER_FACTOR: 0.1
   SIZE_RATES: [0.75, 1.0, 1.25]
 
+  SCHEDULER_MILESTONES_LOW: 50
+  SCHEDULER_MILESTONES_HIGH: 100
+
 DATA:
   ROOT_DIR: './data'
-  TRAIN_IMAGES: 'train_images'
+  TRAIN_IMAGES: 'train_images' #AUGMENTATION_images
   TEST_IMAGES: 'test_images'
   TRAIN_MASKS: 'dfs_masks'
-  
+
   TRAIN: 'train4.csv'
   VAL: 'val4.csv'
   
 SOLVER:
-  EPOCH: 300
+  EPOCH: 150
   BATCH_SIZE: 16
   EARLY_STOPPING: -1
   LR: 0.0001
 
 INFERENCE:
-  SAVE_DIR: './result/PraNet/28Oct_5'
+  SAVE_DIR: './result/PraNet/full_train/result'
   CRF_STEP: 5
   CRF: False
-  MASK_THRES: 0.7
-  TTA: False
+  MASK_THRES: 0.5
+  TTA: True
 
 

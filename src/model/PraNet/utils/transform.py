@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 
 
+import cv2 
+
 
 class rotate90(nn.Module):
     def __init__(self, degree, dims=None):
@@ -19,3 +21,13 @@ class rotate90(nn.Module):
         return torch.rot90(image, self.k, dims)
 
 
+def change_contrast(cv_img, list_alpha):
+    """
+    Args:
+        cv_img ([type]): [description]
+        list_alpha (list): list of contrast value to apply on given image
+    """
+    list_images = []
+    for alpha in list_alpha:
+        list_images.append()
+    pass

@@ -34,7 +34,7 @@ class MedicoNet(nn.Module):
     def get_backbone(self):
         return self.backbone
     
-    def save_checkpoint(self, save_path, epoch, best_score, optimizer):
+    def save_checkpoint(self, save_path, epoch, best_score, optimizer, is_print=True):
         if '.pt' not in save_path:
             save_path = osp.join(save_path, 'best_model.pt')
         
@@ -46,7 +46,8 @@ class MedicoNet(nn.Module):
         }
 
         torch.save(dict_to_save, save_path)
-        print(f"saved checkpoint to {save_path}")
+        if is_print:
+            print(f"saved checkpoint to {save_path}")
 
     def load_checkpoint(self, ckpt_path: str):
         ckpt = torch.load(ckpt_path)
@@ -64,7 +65,7 @@ class MedicoNet(nn.Module):
         res = (res-res.min()) / (res.max() - res.min() + 1e-8)
         return res
 
-    def predict_mask(self, image, raw_shape):
+    def predict_mask(self, image, raw_shape, is_numpy=False):
         '''
         - Get prediction from of a single image
         Args:
@@ -76,9 +77,15 @@ class MedicoNet(nn.Module):
         self.set_eval()
         with torch.no_grad():
             output = self.backbone(image)
-            return self.get_prediction_from_output(output, raw_shape)
+            return self.get_prediction_from_output(output, raw_shape, is_numpy)
 
-    # TODO: inference TTA on a single image
+    def raw_predict(self, inp_tensor):
+        with torch.no_grad():
+            res5, res4, res3, res2 = self.backbone(inp_tensor)
+        output = res2
+        return output
+        
+
     def predict_mask_tta(self, image, raw_shape):
         '''
         Args:

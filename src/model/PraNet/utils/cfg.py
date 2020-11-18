@@ -27,6 +27,8 @@ def get_default_config():
     cfg.TRAIN.NORMALIZE_STD = [0.229, 0.224, 0.225]
     cfg.TRAIN.SCHEDULER_PATIENCE = 10
     cfg.TRAIN.SCHEDULER_FACTOR = 0.1
+    cfg.TRAIN.SCHEDULER_MILESTONES_LOW = 150
+    cfg.TRAIN.SCHEDULER_MILESTONES_HIGH = 250
     cfg.TRAIN.SIZE_RATES = [1.0]
 
     # TODO: need to re-assign these params

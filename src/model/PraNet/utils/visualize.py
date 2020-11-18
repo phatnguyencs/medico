@@ -11,7 +11,7 @@ from torchvision import transforms
 # warnings.simplefilter("ignore", (UserWarning, FutureWarning))
 
 def thresholding_mask(preds, thres=0.5):
-    # thres = thres*preds.max()
+    thres = thres*preds.max()
     preds[preds>=thres] = 1.0
     preds[preds<thres] = 0.0
     return preds
@@ -24,10 +24,6 @@ def reshape_image(image, raw_shape):
 
 def draw_mask(image, mask, thres=0.5, alpha=0.5, raw_shape=None):
     if raw_shape is not None:
-        # np2pil = transforms.ToPILImage()
-        # pil_mask = np2pil(mask)
-        # pil_mask = transforms.Resize((raw_shape['height'], raw_shape['width']), Image.NEAREST)(pil_mask)
-        # mask = np.array(pil_mask)
         image = cv2.resize(image, dsize=(raw_shape['width'], raw_shape['height']))
         mask = cv2.resize(mask, dsize=(raw_shape['width'], raw_shape['height']))
 

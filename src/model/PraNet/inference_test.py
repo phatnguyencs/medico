@@ -46,7 +46,8 @@ def setup():
 def prepare_model(cfg, checkpoint_dir: str):
     model = MedicoNet(cfg)
     resume = checkpoint_dir
-    model.load_checkpoint(resume)
+    ckpt = model.load_checkpoint(resume)
+    print(F"loaded model checkpoint at epoch: {ckpt['epoch']}, best score: {ckpt['best_score']}")
     print(f"LOADED MODEL SUCCESSFULLY")
 
     model.to_device()
@@ -108,14 +109,14 @@ def main():
     checkpoint_dir = cfg.CHECKPOINT_PATH
     model = prepare_model(cfg, checkpoint_dir)
 
-    folders_to_test = ['test_easy', 'test_hard', 'test_images']
+    folders_to_test = ['test_images']
     folders_to_save = [f"visualize_{s}_{cfg.INFERENCE.MASK_THRES:.01f}" for s in folders_to_test]
 
     if cfg.INFERENCE.TTA:
         folders_to_save = [name + '_tta' for name in folders_to_save]
 
     for i in range(len(folders_to_save)):
-        print(f"visualize folder {folders_to_test[i]}")
+        print(f"visualizing folder {folders_to_test[i]} ...")
         visualize_on_specific_folder(
             save_folder=folders_to_save[i], img_folder=folders_to_test[i],
             model=model,cfg=cfg

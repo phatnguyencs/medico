@@ -60,11 +60,12 @@ def epoch_val(valid_loader, model, criterion, logger, step):
     print("Validation Loss: {:.4f} dice-coeff: {:.4f}".format(valid_loss.avg, valid_acc.avg))
     return {"valid_loss": valid_loss.avg, "dice_coeff": valid_acc.avg}
 
-def epoch_train(cfg, model, dataloader, criterion, optimizer, trainsize):
+def epoch_train(cfg, model, dataloader, criterion, optimizer):
     '''
         Training logic for each epoch. 
         Remember to turn model on training mode before calling this function.
     '''
+
     model.set_train()
     train_acc = metrics.MetricTracker()
     loss_record2, loss_record3, loss_record4, loss_record5 = metrics.MetricTracker(), metrics.MetricTracker(), metrics.MetricTracker(), metrics.MetricTracker()
@@ -142,7 +143,11 @@ def do_train(cfg):
     # optimizer
     optimizer = torch.optim.Adam(model.get_weights(), lr=cfg.SOLVER.LR, weight_decay=1e-5)
     # decay LR
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer,milestones=[150, 250],gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer=optimizer,
+        milestones=[cfg.TRAIN.SCHEDULER_MILESTONES_LOW, cfg.TRAIN.SCHEDULER_MILESTONES_HIGH],
+        gamma=0.1
+        )
     
     # optionally resume from a checkpoint
     if resume != '':
@@ -157,12 +162,16 @@ def do_train(cfg):
     print(f"LOADED MODEL SUCCESSFULLY")
 
     # get data
+    if cfg.DATA.TRAIN == '':
+        train_csv = None
+    else:
+        train_csv = cfg.DATA.TRAIN
     train_dataset = ImageDataset(
         cfg, 
         img_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_IMAGES),  
         mask_path=osp.join(cfg.DATA.ROOT_DIR, cfg.DATA.TRAIN_MASKS),
         train=True,
-        csv_file=cfg.DATA.TRAIN
+        csv_file=train_csv
     )
     train_dataloader = DataLoader(
         train_dataset, batch_size=cfg.SOLVER.BATCH_SIZE, num_workers=4, shuffle=True
@@ -180,8 +189,10 @@ def do_train(cfg):
         val_dataloader = DataLoader(val_dataset, batch_size=1, num_workers=4, shuffle=False)
 
 
-    train_criterion = TSA_StructureLoss(cfg, num_steps=cfg.SOLVER.EPOCH*int((len(train_dataset)-1)/cfg.SOLVER.BATCH_SIZE + 1))
+    n_steps = cfg.SOLVER.EPOCH*int((len(train_dataset)-1)/cfg.SOLVER.BATCH_SIZE + 1)
+    train_criterion = TSA_StructureLoss(cfg, num_steps=n_steps, cur_step=0)
     val_criterion = BCEDiceLoss()
+    start_epoch=0
 
     #----------------------- START TRAINING --------------------------------
     for epoch in range(start_epoch, num_epochs):
@@ -192,10 +203,10 @@ def do_train(cfg):
         train_params = {
             'model': model, 'optimizer': optimizer, 
             'dataloader': train_dataloader, 'criterion': train_criterion,
-            'trainsize': cfg.MODEL.IMAGE_SIZE
+            'cfg': cfg,
         }
         log = epoch_train(**train_params)
-        free_gpu_memory()
+        # free_gpu_memory()
         
         print(f"loss2: {log['loss_2']:.4f}, loss3: {log['loss_3']:.4f}, loss4: {log['loss_4']:.4f}, loss5: {log['loss_5']:.4f}, total_loss: {log['total_loss']:.2f}, dice_coeff: {log['dice_coef']:.4f}")
 
@@ -203,6 +214,10 @@ def do_train(cfg):
         writer.log_training(log['total_loss'], log['dice_coef'], epoch)
 
         if not is_val:
+            if best_score < log['dice_coef']:
+                best_score = log['dice_coef']
+                model.save_checkpoint(save_path, epoch, best_score, optimizer)
+                print(f"save checkpoint at epoch {epoch} with lr: {optimizer.param_groups[0]['lr']}")
             continue
         #----------------------- START VALIDATING --------------------------------
         valid_metrics = epoch_val(val_dataloader, model, val_criterion, writer, epoch)
@@ -219,6 +234,8 @@ def do_train(cfg):
             if (cfg.SOLVER.EARLY_STOPPING != -1) and (not_improve_count >= cfg.SOLVER.EARLY_STOPPING):
                 break
 
+    model.save_checkpoint(save_path.replace("best_model.pt", "last_model.pt"), num_epochs-1, best_score, optimizer)
+
 def setup():
     args = get_parser()
     cfg = get_default_config()
@@ -232,3 +249,4 @@ if __name__ == "__main__":
     args, cfg = setup()
     do_train(cfg)
     
+
